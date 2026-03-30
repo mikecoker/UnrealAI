@@ -1,0 +1,13 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0",
+  "FriendlyName": "UnrealAI",
+  "Description": "MCP bridge — lets Claude create Blueprints and Materials via AI",
+  "Category": "Scripting",
+  "CanContainContent": true,
+  "Installed": false,
+  "Plugins": [
+    { "Name": "PythonScriptPlugin", "Enabled": true }
+  ]
+}

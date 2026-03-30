@@ -1,0 +1,12 @@
+def create(body): return {"ok": False, "error": "not implemented"}
+def read(body): return {"ok": False, "error": "not implemented"}
+def list_assets(body): return {"ok": False, "error": "not implemented"}
+def add_variable(body): return {"ok": False, "error": "not implemented"}
+def add_component(body): return {"ok": False, "error": "not implemented"}
+def add_function(body): return {"ok": False, "error": "not implemented"}
+def add_event(body): return {"ok": False, "error": "not implemented"}
+def add_node(body): return {"ok": False, "error": "not implemented"}
+def connect_pins(body): return {"ok": False, "error": "not implemented"}
+def set_property(body): return {"ok": False, "error": "not implemented"}
+def set_component_property(body): return {"ok": False, "error": "not implemented"}
+def compile(body): return {"ok": False, "error": "not implemented"}
