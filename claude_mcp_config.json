@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "unreal-ai": {
+      "command": "python",
+      "args": ["-m", "mcp_server.server"],
+      "cwd": "/path/to/unreal_ai"
+    }
+  }
+}
