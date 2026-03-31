@@ -3,7 +3,7 @@
     "unreal-ai": {
       "command": "python",
       "args": ["-m", "mcp_server.server"],
-      "cwd": "/Users/MikeCoker/projects/unreal_ai/"
+      "cwd": "/Users/mikecoker/projects/unreal_ai"
     }
   }
 }

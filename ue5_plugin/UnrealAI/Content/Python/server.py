@@ -72,6 +72,15 @@ class UnrealAIServer:
 
     def _tick(self, _delta):
         """Called on the game thread each frame. Drains the request queue."""
+        import importlib, sys
+
+        # Auto-reload handler modules so file changes take effect without restart
+        for key in [k for k in list(sys.modules) if k.startswith("handlers") or k == "routes"]:
+            try:
+                importlib.reload(sys.modules[key])
+            except Exception:
+                del sys.modules[key]
+
         from routes import dispatch
         while True:
             try:

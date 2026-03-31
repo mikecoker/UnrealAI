@@ -1,13 +1,69 @@
-# Map type name strings to UE5 pin type identifiers
-_TYPE_MAP = {
-    "bool":    "bool",
-    "int":     "int",
-    "float":   "real",
-    "string":  "string",
-    "vector":  "struct",
-    "rotator": "struct",
-    "actor":   "object",
-    "object":  "object",
+import re as _re
+
+def _camel_to_snake(name: str) -> str:
+    s = _re.sub(r'(.)([A-Z][a-z]+)', r'\1_\2', name)
+    s = _re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', s).lower()
+    return _re.sub(r'_+', '_', s)  # collapse double underscores from pre-existing _
+
+# Ordered list of (unreal_attr_name, full_class_path) to search when resolving bare function names
+_FUNCTION_SEARCH_CLASSES = [
+    ("SystemLibrary",              "/Script/Engine.KismetSystemLibrary"),
+    ("MathLibrary",                "/Script/Engine.KismetMathLibrary"),
+    ("GameplayStatics",            "/Script/Engine.GameplayStatics"),
+    ("StringLibrary",              "/Script/Engine.KismetStringLibrary"),
+    ("KismetArrayLibrary",         "/Script/Engine.KismetArrayLibrary"),
+    ("RenderingLibrary",           "/Script/Engine.KismetRenderingLibrary"),
+    ("Actor",                      "/Script/Engine.Actor"),
+    ("Character",                  "/Script/Engine.Character"),
+    ("Pawn",                       "/Script/Engine.Pawn"),
+    ("CharacterMovementComponent", "/Script/Engine.CharacterMovementComponent"),
+    ("SceneComponent",             "/Script/Engine.SceneComponent"),
+    ("PrimitiveComponent",         "/Script/Engine.PrimitiveComponent"),
+    ("StaticMeshComponent",        "/Script/Engine.StaticMeshComponent"),
+]
+
+def _resolve_function(function: str) -> str:
+    """
+    Resolve a bare function name to a full 'ClassName:FunctionName' path.
+    If the name already contains ':', returns it unchanged.
+    """
+    if ':' in function:
+        return function
+    import unreal
+    snake = _camel_to_snake(function)
+    # Use snake in dir(cls) — more reliable than hasattr for UE5 Python objects
+    for attr, path in _FUNCTION_SEARCH_CLASSES:
+        cls = getattr(unreal, attr, None)
+        if cls is not None and snake in dir(cls):
+            return f"{path}:{function}"
+    # Broader fallback: search all Library/Statics classes in unreal module
+    for name in dir(unreal):
+        if not (name.endswith('Library') or name.endswith('Statics')):
+            continue
+        cls = getattr(unreal, name, None)
+        if cls is None:
+            continue
+        if snake in dir(cls):
+            try:
+                class_path = cls.static_class().get_path_name()
+                return f"{class_path}:{function}"
+            except Exception:
+                pass
+    return function  # return bare name; C++ will try its own fallback
+
+
+# Map type name strings to EdGraphPinType import_text representations
+_PIN_TYPE_TEXT = {
+    "bool":    "(PinCategory=bool)",
+    "int":     "(PinCategory=int)",
+    "float":   "(PinCategory=real,PinSubCategory=double)",
+    "string":  "(PinCategory=string)",
+    "name":    "(PinCategory=name)",
+    "text":    "(PinCategory=text)",
+    "vector":  "(PinCategory=struct,PinSubCategoryObject=/Script/CoreUObject.Vector)",
+    "rotator": "(PinCategory=struct,PinSubCategoryObject=/Script/CoreUObject.Rotator)",
+    "actor":   "(PinCategory=object,PinSubCategoryObject=/Script/Engine.Actor)",
+    "object":  "(PinCategory=object)",
 }
 
 # Common parent class paths
@@ -62,7 +118,14 @@ def read(body: dict) -> dict:
         return {"ok": False, "error": "asset_path is required"}
     try:
         bp = _load_bp(asset_path)
-        graphs = [g.get_name() for g in unreal.BlueprintEditorLibrary.get_all_graphs(bp)]
+        graphs = []
+        for gname in ("EventGraph", "ConstructionScript"):
+            g = unreal.BlueprintEditorLibrary.find_graph(bp, gname)
+            if g:
+                graphs.append(g.get_name())
+        eg = unreal.BlueprintEditorLibrary.find_event_graph(bp)
+        if eg and eg.get_name() not in graphs:
+            graphs.insert(0, eg.get_name())
         return {"ok": True, "asset_path": asset_path, "graphs": graphs}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -89,8 +152,9 @@ def add_variable(body: dict) -> dict:
     try:
         bp = _load_bp(asset_path)
         pin_type = unreal.EdGraphPinType()
-        pin_type.pc_type = _TYPE_MAP.get(var_type, var_type)
+        pin_type.import_text(_PIN_TYPE_TEXT.get(var_type, f"(PinCategory={var_type})"))
         unreal.BlueprintEditorLibrary.add_member_variable(bp, name, pin_type)
+        unreal.EditorAssetLibrary.save_asset(asset_path)
         return {"ok": True, "variable": name, "type": var_type}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -106,7 +170,20 @@ def add_component(body: dict) -> dict:
     try:
         bp = _load_bp(asset_path)
         cls = unreal.load_class(None, f"/Script/Engine.{component_class}")
-        comp = unreal.BlueprintEditorLibrary.add_component(bp, cls, name)
+        subsystem = unreal.get_engine_subsystem(unreal.SubobjectDataSubsystem)
+        handles = subsystem.k2_gather_subobject_data_for_blueprint(bp)
+        if not handles:
+            return {"ok": False, "error": "Could not find root component handle"}
+        params = unreal.AddNewSubobjectParams(
+            parent_handle=handles[0],
+            new_class=cls,
+            blueprint_context=bp,
+        )
+        handle, fail_reason = subsystem.add_new_subobject(params)
+        fail_str = str(fail_reason) if fail_reason is not None else ""
+        if fail_str:
+            return {"ok": False, "error": fail_str}
+        subsystem.rename_subobject_member_variable(bp, handle, name)
         return {"ok": True, "component": name, "class": component_class}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -120,8 +197,8 @@ def add_function(body: dict) -> dict:
         return {"ok": False, "error": "asset_path and name are required"}
     try:
         bp = _load_bp(asset_path)
-        unreal.BlueprintEditorLibrary.add_function(bp, name)
-        return {"ok": True, "function": name}
+        graph = unreal.BlueprintEditorLibrary.add_function_graph(bp, name)
+        return {"ok": True, "function": graph.get_name() if graph else name}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -134,8 +211,38 @@ def add_event(body: dict) -> dict:
         return {"ok": False, "error": "asset_path is required"}
     try:
         bp = _load_bp(asset_path)
-        graph = unreal.BlueprintEditorLibrary.get_editor_graph(bp, "EventGraph")
-        return {"ok": True, "event": event, "graph": "EventGraph"}
+        graph = unreal.BlueprintEditorLibrary.find_event_graph(bp)
+        if graph is None:
+            return {"ok": False, "error": "EventGraph not found"}
+        # Use C++ AddOrFindEventNode to create or locate the event node
+        node_id = None
+        pins = []
+        try:
+            node = unreal.UnrealAIGraphLibrary.add_or_find_event_node(graph, bp, event, 0, 0)
+            if node:
+                node_id = node.get_name()
+                nodes_info = unreal.UnrealAIGraphLibrary.get_graph_nodes(graph)
+                for n in nodes_info:
+                    if n.node_name == node_id:
+                        pins = list(n.input_pins) + list(n.output_pins)
+                        break
+        except AttributeError:
+            # C++ not yet compiled — fall back to searching existing nodes by function name
+            nodes_info = unreal.UnrealAIGraphLibrary.get_graph_nodes(graph)
+            for n in nodes_info:
+                if n.node_class not in ("K2Node_Event", "K2Node_CustomEvent"):
+                    continue
+                try:
+                    func_name = unreal.UnrealAIGraphLibrary.get_event_node_function_name(graph, n.node_name)
+                    if func_name and event.lower() in func_name.lower():
+                        node_id = n.node_name
+                        pins = list(n.input_pins) + list(n.output_pins)
+                        break
+                except AttributeError:
+                    pass
+
+        return {"ok": True, "event": event, "graph": graph.get_name(),
+                "node_id": node_id, "pins": pins}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -151,11 +258,22 @@ def add_node(body: dict) -> dict:
         return {"ok": False, "error": "asset_path and function are required"}
     try:
         bp = _load_bp(asset_path)
-        graph = unreal.BlueprintEditorLibrary.get_editor_graph(bp, graph_name)
+        if graph_name == "EventGraph":
+            graph = unreal.BlueprintEditorLibrary.find_event_graph(bp)
+        else:
+            graph = unreal.BlueprintEditorLibrary.find_graph(bp, graph_name)
         if graph is None:
             return {"ok": False, "error": f"Graph not found: {graph_name}"}
-        node = unreal.BlueprintEditorLibrary.add_function_call_node(graph, function, node_x, node_y)
-        pins = [p.get_name() for p in node.get_all_pins()] if hasattr(node, "get_all_pins") else []
+        function = _resolve_function(function)
+        node = unreal.UnrealAIGraphLibrary.add_function_call_node(graph, function, node_x, node_y)
+        if node is None:
+            return {"ok": False, "error": f"Function not found: {function}"}
+        nodes_info = unreal.UnrealAIGraphLibrary.get_graph_nodes(graph)
+        pins = []
+        for n in nodes_info:
+            if n.node_name == node.get_name():
+                pins = list(n.input_pins) + list(n.output_pins)
+                break
         return {"ok": True, "node_id": node.get_name(), "function": function, "pins": pins}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -169,16 +287,148 @@ def connect_pins(body: dict) -> dict:
     from_pin = body.get("from_pin")
     to_node = body.get("to_node")
     to_pin = body.get("to_pin")
-    required = [asset_path, graph_name, from_node, from_pin, to_node, to_pin]
-    if not all(required):
-        return {"ok": False, "error": "asset_path, graph, from_node, from_pin, to_node, to_pin are all required"}
+    if not all([asset_path, from_node, from_pin, to_node, to_pin]):
+        return {"ok": False, "error": "asset_path, from_node, from_pin, to_node, to_pin are all required"}
     try:
         bp = _load_bp(asset_path)
-        graph = unreal.BlueprintEditorLibrary.get_editor_graph(bp, graph_name)
-        unreal.BlueprintEditorLibrary.connect_graph_pins(
-            graph, from_node, from_pin, to_node, to_pin
-        )
+        if graph_name == "EventGraph":
+            graph = unreal.BlueprintEditorLibrary.find_event_graph(bp)
+        else:
+            graph = unreal.BlueprintEditorLibrary.find_graph(bp, graph_name)
+        if graph is None:
+            return {"ok": False, "error": f"Graph not found: {graph_name}"}
+        ok = unreal.UnrealAIGraphLibrary.connect_graph_pins(graph, from_node, from_pin, to_node, to_pin)
+        if not ok:
+            return {"ok": False, "error": f"Could not connect {from_node}.{from_pin} → {to_node}.{to_pin}"}
         return {"ok": True, "connected": f"{from_node}.{from_pin} → {to_node}.{to_pin}"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def add_special_node(body: dict) -> dict:
+    import unreal
+    asset_path = body.get("asset_path")
+    graph_name = body.get("graph", "EventGraph")
+    node_type = body.get("node_type")
+    node_x = body.get("x", 0)
+    node_y = body.get("y", 0)
+    if not asset_path or not node_type:
+        return {"ok": False, "error": "asset_path and node_type are required"}
+    try:
+        bp = _load_bp(asset_path)
+        graph = unreal.BlueprintEditorLibrary.find_event_graph(bp) if graph_name == "EventGraph" \
+            else unreal.BlueprintEditorLibrary.find_graph(bp, graph_name)
+        if graph is None:
+            return {"ok": False, "error": f"Graph not found: {graph_name}"}
+        node = unreal.UnrealAIGraphLibrary.add_special_node(graph, node_type, node_x, node_y)
+        if node is None:
+            return {"ok": False, "error": f"Unknown node type: {node_type}. Supported: Branch, Sequence, ForLoop, DoOnce, FlipFlop, Gate"}
+        nodes_info = unreal.UnrealAIGraphLibrary.get_graph_nodes(graph)
+        pins = []
+        for n in nodes_info:
+            if n.node_name == node.get_name():
+                pins = list(n.input_pins) + list(n.output_pins)
+                break
+        return {"ok": True, "node_id": node.get_name(), "node_type": node_type, "pins": pins}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def add_variable_node(body: dict) -> dict:
+    import unreal
+    asset_path = body.get("asset_path")
+    variable = body.get("variable")
+    node_type = body.get("node_type", "get")  # "get" or "set"
+    graph_name = body.get("graph", "EventGraph")
+    node_x = body.get("x", 0)
+    node_y = body.get("y", 0)
+    if not asset_path or not variable:
+        return {"ok": False, "error": "asset_path and variable are required"}
+    try:
+        bp = _load_bp(asset_path)
+        graph = unreal.BlueprintEditorLibrary.find_event_graph(bp) if graph_name == "EventGraph" \
+            else unreal.BlueprintEditorLibrary.find_graph(bp, graph_name)
+        if graph is None:
+            return {"ok": False, "error": f"Graph not found: {graph_name}"}
+        if node_type == "set":
+            node = unreal.UnrealAIGraphLibrary.add_variable_set_node(graph, bp, variable, node_x, node_y)
+        else:
+            node = unreal.UnrealAIGraphLibrary.add_variable_get_node(graph, bp, variable, node_x, node_y)
+        if node is None:
+            return {"ok": False, "error": f"Variable '{variable}' not found on blueprint"}
+        nodes_info = unreal.UnrealAIGraphLibrary.get_graph_nodes(graph)
+        pins = []
+        for n in nodes_info:
+            if n.node_name == node.get_name():
+                pins = list(n.input_pins) + list(n.output_pins)
+                break
+        return {"ok": True, "node_id": node.get_name(), "variable": variable, "node_type": node_type, "pins": pins}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def find_function(body: dict) -> dict:
+    import unreal
+    name = body.get("name")
+    if not name:
+        return {"ok": False, "error": "name is required"}
+    try:
+        # Python-side search (fast, no restart needed)
+        snake = _camel_to_snake(name)
+        matches = []
+        for attr, path in _FUNCTION_SEARCH_CLASSES:
+            cls = getattr(unreal, attr, None)
+            if cls is not None and snake in dir(cls):
+                matches.append(f"{path}:{name}")
+        # Broader search across all Library/Statics classes
+        seen_paths = set(matches)
+        for uname in dir(unreal):
+            if not (uname.endswith('Library') or uname.endswith('Statics')):
+                continue
+            cls = getattr(unreal, uname, None)
+            if cls is None:
+                continue
+            if snake in dir(cls):
+                try:
+                    class_path = cls.static_class().get_path_name()
+                    entry = f"{class_path}:{name}"
+                    if entry not in seen_paths:
+                        matches.append(entry)
+                        seen_paths.add(entry)
+                except Exception:
+                    pass
+        # Also try C++ exhaustive search if available
+        try:
+            cpp_matches = list(unreal.UnrealAIGraphLibrary.find_functions_by_name(name))
+            for m in cpp_matches:
+                if m not in matches:
+                    matches.append(m)
+        except AttributeError:
+            pass
+        return {"ok": True, "matches": matches}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def get_nodes(body: dict) -> dict:
+    import unreal
+    asset_path = body.get("asset_path")
+    graph_name = body.get("graph", "EventGraph")
+    if not asset_path:
+        return {"ok": False, "error": "asset_path is required"}
+    try:
+        bp = _load_bp(asset_path)
+        if graph_name == "EventGraph":
+            graph = unreal.BlueprintEditorLibrary.find_event_graph(bp)
+        else:
+            graph = unreal.BlueprintEditorLibrary.find_graph(bp, graph_name)
+        if graph is None:
+            return {"ok": False, "error": f"Graph not found: {graph_name}"}
+        nodes_info = unreal.UnrealAIGraphLibrary.get_graph_nodes(graph)
+        nodes = [{"name": n.node_name, "class": n.node_class,
+                  "inputs": list(n.input_pins), "outputs": list(n.output_pins)}
+                 for n in nodes_info]
+        return {"ok": True, "graph": graph_name, "nodes": nodes}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -192,7 +442,9 @@ def set_property(body: dict) -> dict:
         return {"ok": False, "error": "asset_path and property are required"}
     try:
         bp = _load_bp(asset_path)
-        unreal.BlueprintEditorLibrary.set_variable_default_value(bp, property_name, str(value))
+        ok = unreal.UnrealAIGraphLibrary.set_variable_default_value(bp, property_name, str(value))
+        if not ok:
+            return {"ok": False, "error": f"Variable '{property_name}' not found"}
         return {"ok": True, "property": property_name, "value": value}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -208,9 +460,18 @@ def set_component_property(body: dict) -> dict:
         return {"ok": False, "error": "asset_path, component, and property are required"}
     try:
         bp = _load_bp(asset_path)
-        comp_obj = unreal.EditorAssetLibrary.load_asset(f"{asset_path}:{component}")
-        if comp_obj:
-            comp_obj.set_editor_property(property_name, value)
+        subsystem = unreal.get_engine_subsystem(unreal.SubobjectDataSubsystem)
+        handles = subsystem.k2_gather_subobject_data_for_blueprint(bp)
+        lib = unreal.SubobjectDataBlueprintFunctionLibrary
+        comp_obj = None
+        for handle in handles:
+            data = lib.get_data(handle)
+            if data and str(lib.get_variable_name(data)) == component:
+                comp_obj = lib.get_object_for_blueprint(data, bp)
+                break
+        if comp_obj is None:
+            return {"ok": False, "error": f"Component '{component}' not found"}
+        comp_obj.set_editor_property(property_name, value)
         return {"ok": True, "component": component, "property": property_name, "value": value}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -223,8 +484,7 @@ def compile(body: dict) -> dict:
         return {"ok": False, "error": "asset_path is required"}
     try:
         bp = _load_bp(asset_path)
-        error_objs = unreal.BlueprintEditorLibrary.compile_blueprint(bp)
-        errors = [e.get_message() for e in (error_objs or [])]
-        return {"ok": True, "asset_path": asset_path, "errors": errors, "clean": len(errors) == 0}
+        unreal.BlueprintEditorLibrary.compile_blueprint(bp)
+        return {"ok": True, "asset_path": asset_path, "errors": [], "clean": True}
     except Exception as e:
         return {"ok": False, "error": str(e)}

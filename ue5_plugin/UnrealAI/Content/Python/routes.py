@@ -1,5 +1,5 @@
 """Maps HTTP paths to handler functions."""
-from handlers import blueprints, materials, scene
+from handlers import blueprints, materials, scene, debug
 
 _ROUTES = {
     # Scene
@@ -17,9 +17,23 @@ _ROUTES = {
     "/blueprint/add_event":        blueprints.add_event,
     "/blueprint/add_node":         blueprints.add_node,
     "/blueprint/connect_pins":     blueprints.connect_pins,
+    "/blueprint/get_nodes":        blueprints.get_nodes,
+    "/blueprint/find_function":    blueprints.find_function,
+    "/blueprint/add_special_node":  blueprints.add_special_node,
+    "/blueprint/add_variable_node": blueprints.add_variable_node,
     "/blueprint/set_property":     blueprints.set_property,
     "/blueprint/set_component_property": blueprints.set_component_property,
     "/blueprint/compile":          blueprints.compile,
+
+    # Debug
+    "/debug/pintype":                debug.pintype,
+    "/debug/bp_api":                 debug.bp_api,
+    "/debug/ue_classes":             debug.ue_classes,
+    "/debug/obj_api":                debug.obj_api,
+    "/debug/graph_nodes":            debug.graph_nodes,
+    "/debug/browse_class":           debug.browse_class,
+    "/debug/bp_variables":           debug.bp_variables,
+    "/debug/cdo_props":              debug.cdo_props,
 
     # Materials
     "/material/create":            materials.create,

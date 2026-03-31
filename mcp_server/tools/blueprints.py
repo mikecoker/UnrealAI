@@ -48,7 +48,37 @@ def _bp_add_function(asset_path: str, name: str) -> str:
 
 def _bp_add_event(asset_path: str, event: str = "BeginPlay") -> str:
     r = _check(client.post("/blueprint/add_event", {"asset_path": asset_path, "event": event}))
-    return f"Added event '{r['event']}' to {asset_path}"
+    return json.dumps(r, indent=2)
+
+
+def _bp_get_nodes(asset_path: str, graph: str = "EventGraph") -> str:
+    r = _check(client.post("/blueprint/get_nodes", {"asset_path": asset_path, "graph": graph}))
+    return json.dumps(r, indent=2)
+
+
+def _bp_add_variable_node(asset_path: str, graph: str, variable: str, node_type: str = "get", x: int = 0, y: int = 0) -> str:
+    r = _check(client.post("/blueprint/add_variable_node", {
+        "asset_path": asset_path, "graph": graph, "variable": variable,
+        "node_type": node_type, "x": x, "y": y
+    }))
+    pins_str = ", ".join(r.get("pins", []))
+    return f"Added variable {node_type} node '{r['node_id']}' for '{variable}'. Pins: {pins_str}"
+
+
+def _bp_add_special_node(asset_path: str, graph: str, node_type: str, x: int = 0, y: int = 0) -> str:
+    r = _check(client.post("/blueprint/add_special_node", {
+        "asset_path": asset_path, "graph": graph, "node_type": node_type, "x": x, "y": y
+    }))
+    pins_str = ", ".join(r.get("pins", []))
+    return f"Added '{node_type}' node '{r['node_id']}'. Pins: {pins_str}"
+
+
+def _bp_find_function(name: str) -> str:
+    r = _check(client.post("/blueprint/find_function", {"name": name}))
+    matches = r.get("matches", [])
+    if not matches:
+        return f"No functions found matching '{name}'"
+    return "\n".join(matches)
 
 
 def _bp_add_node(asset_path: str, graph: str, function: str, x: int = 0, y: int = 0) -> str:
@@ -123,12 +153,32 @@ def register(mcp):
 
     @mcp.tool()
     def bp_add_event(asset_path: str, event: str = "BeginPlay") -> str:
-        """Add an event to a Blueprint's EventGraph. event: BeginPlay, Tick, or a custom event name."""
+        """Add an event to a Blueprint's EventGraph and return its node_id and pins. event: BeginPlay, Tick, or a custom event name. Use the returned node_id for bp_connect_pins."""
         return _bp_add_event(asset_path, event)
 
     @mcp.tool()
+    def bp_get_nodes(asset_path: str, graph: str = "EventGraph") -> str:
+        """List all nodes in a Blueprint graph with their IDs, classes, and pin names. Use this to find node IDs for bp_connect_pins."""
+        return _bp_get_nodes(asset_path, graph)
+
+    @mcp.tool()
+    def bp_add_variable_node(asset_path: str, graph: str, variable: str, node_type: str = "get", x: int = 0, y: int = 0) -> str:
+        """Add a variable getter or setter node to a Blueprint graph. node_type: 'get' (default) or 'set'. variable must be the exact variable name as defined on the Blueprint."""
+        return _bp_add_variable_node(asset_path, graph, variable, node_type, x, y)
+
+    @mcp.tool()
+    def bp_add_special_node(asset_path: str, graph: str, node_type: str, x: int = 0, y: int = 0) -> str:
+        """Add a special node to a Blueprint graph. node_type: Branch, Sequence, ForLoop, DoOnce, FlipFlop, Gate, Self"""
+        return _bp_add_special_node(asset_path, graph, node_type, x, y)
+
+    @mcp.tool()
+    def bp_find_function(name: str) -> str:
+        """Search for a UE5 function by name. Returns full paths like '/Script/Engine.KismetSystemLibrary:PrintString' needed by bp_add_node. Use this before bp_add_node if you don't know the exact path."""
+        return _bp_find_function(name)
+
+    @mcp.tool()
     def bp_add_node(asset_path: str, graph: str, function: str, x: int = 0, y: int = 0) -> str:
-        """Add a function call node to a Blueprint graph. function example: PrintString"""
+        """Add a function call node to a Blueprint graph. Use bp_find_function to discover the correct name first. UE5.5+ uses double precision: comparison operators are 'Greater_DoubleDouble' not 'Greater_FloatFloat'; vector length is 'VSize' not 'VectorLength'. For Branch/ForLoop/Sequence use bp_add_special_node instead."""
         return _bp_add_node(asset_path, graph, function, x, y)
 
     @mcp.tool()
