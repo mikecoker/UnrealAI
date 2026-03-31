@@ -16,12 +16,12 @@ def test_all_tools_registered():
         "bp_delete_event", "bp_delete_node", "bp_disconnect_pins", "bp_compile",
         # Materials (7)
         "mat_create", "mat_read", "mat_list", "mat_add_expression", "mat_connect_pins", "mat_set_parameter", "mat_apply",
-        # Behavior Trees (14)
+        # Behavior Trees (15)
         "bt_create", "bt_read", "bt_add_node", "bt_delete_node", "bt_connect_nodes", "bt_disconnect_nodes",
-        "bt_set_blackboard", "bt_get_blackboard", "bt_compile",
+        "bt_set_blackboard", "bt_get_blackboard", "bt_get_nodes", "bt_compile",
         "bb_create", "bb_read", "bb_add_variable", "bb_delete_variable", "bb_delete",
     }
-    
+
     missing = expected - registered
     assert not missing, f"Missing tools: {missing}"
-    assert len(registered) == 46
+    assert len(registered) == 47

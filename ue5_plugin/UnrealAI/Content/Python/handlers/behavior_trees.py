@@ -55,98 +55,129 @@ def read(body: dict) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+_COMPOSITE_TYPES = {"Sequence", "Selector", "SimpleParallel"}
+
+
 def add_node(body: dict) -> dict:
-    """Add a node to the Behavior Tree."""
+    """Add a composite or task node to the Behavior Tree."""
     import unreal
     asset_path = body.get("asset_path")
     node_type = body.get("node_type")
+    x = body.get("x", 0)
+    y = body.get("y", 0)
     if not asset_path or not node_type:
         return {"ok": False, "error": "asset_path and node_type are required"}
-    
+
     try:
         bt = unreal.EditorAssetLibrary.load_asset(asset_path)
         if bt is None:
             return {"ok": False, "error": f"Behavior Tree not found: {asset_path}"}
-        
-        # This is a simplified implementation - actual node addition would require
-        # using the Behavior Tree editor APIs which are more complex
-        # For now, we'll return a placeholder response
-        return {
-            "ok": True,
-            "message": f"Node type '{node_type}' addition not fully implemented",
-            "asset_path": asset_path
-        }
+
+        if node_type in _COMPOSITE_TYPES:
+            node = unreal.UnrealAIGraphLibrary.add_bt_composite_node(bt, node_type, x, y)
+        else:
+            node = unreal.UnrealAIGraphLibrary.add_bt_task_node(bt, node_type, x, y)
+
+        if node is None:
+            return {"ok": False, "error": f"Failed to add node of type '{node_type}'"}
+
+        unreal.EditorAssetLibrary.save_asset(asset_path)
+        return {"ok": True, "node_id": node.get_name(), "node_type": node_type,
+                "asset_path": asset_path}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
 
 def delete_node(body: dict) -> dict:
-    """Delete a node from the Behavior Tree."""
+    """Delete a node from the Behavior Tree by its node_id."""
     import unreal
     asset_path = body.get("asset_path")
     node_name = body.get("node_name")
     if not asset_path or not node_name:
         return {"ok": False, "error": "asset_path and node_name are required"}
-    
+
     try:
         bt = unreal.EditorAssetLibrary.load_asset(asset_path)
         if bt is None:
             return {"ok": False, "error": f"Behavior Tree not found: {asset_path}"}
-        
-        # Placeholder implementation
-        return {
-            "ok": True,
-            "message": f"Node '{node_name}' deletion not fully implemented",
-            "asset_path": asset_path
-        }
+
+        removed = unreal.UnrealAIGraphLibrary.delete_bt_node(bt, node_name)
+        if not removed:
+            return {"ok": False,
+                    "error": f"Node '{node_name}' not found or cannot be deleted (root node cannot be removed)"}
+
+        unreal.EditorAssetLibrary.save_asset(asset_path)
+        return {"ok": True, "node_name": node_name, "asset_path": asset_path}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
 
 def connect_nodes(body: dict) -> dict:
-    """Connect two nodes in the Behavior Tree."""
+    """Connect a parent node's output to a child node's input in the Behavior Tree."""
     import unreal
     asset_path = body.get("asset_path")
     from_node = body.get("from_node")
     to_node = body.get("to_node")
     if not all([asset_path, from_node, to_node]):
         return {"ok": False, "error": "asset_path, from_node, and to_node are required"}
-    
+
     try:
         bt = unreal.EditorAssetLibrary.load_asset(asset_path)
         if bt is None:
             return {"ok": False, "error": f"Behavior Tree not found: {asset_path}"}
-        
-        # Placeholder implementation
-        return {
-            "ok": True,
-            "message": f"Connection from '{from_node}' to '{to_node}' not fully implemented",
-            "asset_path": asset_path
-        }
+
+        ok = unreal.UnrealAIGraphLibrary.connect_bt_nodes(bt, from_node, to_node)
+        if not ok:
+            return {"ok": False, "error": f"Could not connect '{from_node}' to '{to_node}'"}
+
+        unreal.EditorAssetLibrary.save_asset(asset_path)
+        return {"ok": True, "connected": f"{from_node} -> {to_node}"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
 
 def disconnect_nodes(body: dict) -> dict:
-    """Disconnect two nodes in the Behavior Tree."""
+    """Disconnect a parent node from a child node in the Behavior Tree."""
     import unreal
     asset_path = body.get("asset_path")
     from_node = body.get("from_node")
     to_node = body.get("to_node")
     if not all([asset_path, from_node, to_node]):
         return {"ok": False, "error": "asset_path, from_node, and to_node are required"}
-    
+
     try:
         bt = unreal.EditorAssetLibrary.load_asset(asset_path)
         if bt is None:
             return {"ok": False, "error": f"Behavior Tree not found: {asset_path}"}
-        
-        # Placeholder implementation
-        return {
-            "ok": True,
-            "message": f"Disconnection from '{from_node}' to '{to_node}' not fully implemented",
-            "asset_path": asset_path
-        }
+
+        ok = unreal.UnrealAIGraphLibrary.disconnect_bt_nodes(bt, from_node, to_node)
+        if not ok:
+            return {"ok": False,
+                    "error": f"No connection found between '{from_node}' and '{to_node}'"}
+
+        unreal.EditorAssetLibrary.save_asset(asset_path)
+        return {"ok": True, "disconnected": f"{from_node} -> {to_node}"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def get_nodes(body: dict) -> dict:
+    """Get all nodes in a Behavior Tree with their names, types, and connections."""
+    import unreal
+    asset_path = body.get("asset_path")
+    if not asset_path:
+        return {"ok": False, "error": "asset_path is required"}
+
+    try:
+        bt = unreal.EditorAssetLibrary.load_asset(asset_path)
+        if bt is None:
+            return {"ok": False, "error": f"Behavior Tree not found: {asset_path}"}
+
+        nodes_info = unreal.UnrealAIGraphLibrary.get_bt_nodes(bt)
+        nodes = [{"name": n.node_name, "class": n.node_class,
+                  "inputs": list(n.input_pins), "outputs": list(n.output_pins)}
+                 for n in nodes_info]
+        return {"ok": True, "asset_path": asset_path, "nodes": nodes}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 

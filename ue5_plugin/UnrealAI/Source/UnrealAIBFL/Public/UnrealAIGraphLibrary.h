@@ -5,6 +5,7 @@
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "Engine/Blueprint.h"
+#include "BehaviorTree/BehaviorTree.h"
 #include "UnrealAIGraphLibrary.generated.h"
 
 USTRUCT(BlueprintType)
@@ -139,4 +140,65 @@ public:
         const FString& VariableName,
         float NodeX,
         float NodeY);
+
+    // -----------------------------------------------------------------------
+    // Behavior Tree graph manipulation
+    // -----------------------------------------------------------------------
+
+    /**
+     * Add a composite node (Sequence, Selector, or SimpleParallel) to a Behavior Tree.
+     * CompositeType is case-insensitive: "Sequence", "Selector", "SimpleParallel".
+     */
+    UFUNCTION(BlueprintCallable, Category="UnrealAI|BehaviorTree")
+    static UEdGraphNode* AddBTCompositeNode(
+        UBehaviorTree* BT,
+        const FString& CompositeType,
+        float NodeX,
+        float NodeY);
+
+    /**
+     * Add a task node to a Behavior Tree.
+     * TaskClass: short name ("Wait", "MoveTo") for built-ins, or full class path
+     *            ("/Game/Path/BP_MyTask") for Blueprint tasks.
+     */
+    UFUNCTION(BlueprintCallable, Category="UnrealAI|BehaviorTree")
+    static UEdGraphNode* AddBTTaskNode(
+        UBehaviorTree* BT,
+        const FString& TaskClass,
+        float NodeX,
+        float NodeY);
+
+    /**
+     * Delete a node from a Behavior Tree by its graph node name.
+     * The root node cannot be deleted.
+     */
+    UFUNCTION(BlueprintCallable, Category="UnrealAI|BehaviorTree")
+    static bool DeleteBTNode(
+        UBehaviorTree* BT,
+        const FString& NodeName);
+
+    /**
+     * Connect a parent node's output to a child node's input in a Behavior Tree.
+     * Uses the first output pin of ParentNode and the first input pin of ChildNode.
+     */
+    UFUNCTION(BlueprintCallable, Category="UnrealAI|BehaviorTree")
+    static bool ConnectBTNodes(
+        UBehaviorTree* BT,
+        const FString& ParentNodeName,
+        const FString& ChildNodeName);
+
+    /**
+     * Disconnect a parent node from a child node in a Behavior Tree.
+     */
+    UFUNCTION(BlueprintCallable, Category="UnrealAI|BehaviorTree")
+    static bool DisconnectBTNodes(
+        UBehaviorTree* BT,
+        const FString& ParentNodeName,
+        const FString& ChildNodeName);
+
+    /**
+     * Return info about all nodes in a Behavior Tree's graph.
+     */
+    UFUNCTION(BlueprintCallable, Category="UnrealAI|BehaviorTree")
+    static TArray<FUnrealAINodeInfo> GetBTNodes(UBehaviorTree* BT);
 };

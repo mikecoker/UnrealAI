@@ -66,62 +66,207 @@ def test_read_asset_not_found():
         assert "Behavior Tree not found" in result["error"]
 
 
-def test_add_node():
+def test_add_node_composite():
+    mock_unreal = mock.MagicMock()
+    mock_bt = mock.MagicMock()
+    mock_node = mock.MagicMock()
+    mock_node.get_name.return_value = "BehaviorTreeGraphNode_Composite_0"
+    mock_unreal.EditorAssetLibrary.load_asset.return_value = mock_bt
+    mock_unreal.UnrealAIGraphLibrary.add_bt_composite_node.return_value = mock_node
+    with mock.patch.dict('sys.modules', {'unreal': mock_unreal}):
+        import importlib
+        import ue5_plugin.UnrealAI.Content.Python.handlers.behavior_trees as bt_mod
+        importlib.reload(bt_mod)
+        result = bt_mod.add_node({
+            "asset_path": "/Game/TestBT",
+            "node_type": "Sequence",
+            "x": 100,
+            "y": 200,
+        })
+        assert result["ok"] is True
+        assert result["node_id"] == "BehaviorTreeGraphNode_Composite_0"
+        assert result["node_type"] == "Sequence"
+        mock_unreal.UnrealAIGraphLibrary.add_bt_composite_node.assert_called_once_with(
+            mock_bt, "Sequence", 100, 200
+        )
+
+
+def test_add_node_task():
+    mock_unreal = mock.MagicMock()
+    mock_bt = mock.MagicMock()
+    mock_node = mock.MagicMock()
+    mock_node.get_name.return_value = "BehaviorTreeGraphNode_Task_0"
+    mock_unreal.EditorAssetLibrary.load_asset.return_value = mock_bt
+    mock_unreal.UnrealAIGraphLibrary.add_bt_task_node.return_value = mock_node
+    with mock.patch.dict('sys.modules', {'unreal': mock_unreal}):
+        import importlib
+        import ue5_plugin.UnrealAI.Content.Python.handlers.behavior_trees as bt_mod
+        importlib.reload(bt_mod)
+        result = bt_mod.add_node({
+            "asset_path": "/Game/TestBT",
+            "node_type": "Wait",
+        })
+        assert result["ok"] is True
+        assert result["node_id"] == "BehaviorTreeGraphNode_Task_0"
+        mock_unreal.UnrealAIGraphLibrary.add_bt_task_node.assert_called_once_with(
+            mock_bt, "Wait", 0, 0
+        )
+
+
+def test_add_node_not_found():
     mock_unreal = mock.MagicMock()
     mock_bt = mock.MagicMock()
     mock_unreal.EditorAssetLibrary.load_asset.return_value = mock_bt
+    mock_unreal.UnrealAIGraphLibrary.add_bt_composite_node.return_value = None
     with mock.patch.dict('sys.modules', {'unreal': mock_unreal}):
-        from ue5_plugin.UnrealAI.Content.Python.handlers import behavior_trees
-        result = behavior_trees.add_node({
-            "asset_path": "/Game/TestBT",
-            "node_type": "Sequence"
-        })
-        assert result["ok"] is True
-        assert "Node type 'Sequence' addition not fully implemented" in result["message"]
+        import importlib
+        import ue5_plugin.UnrealAI.Content.Python.handlers.behavior_trees as bt_mod
+        importlib.reload(bt_mod)
+        result = bt_mod.add_node({"asset_path": "/Game/TestBT", "node_type": "Sequence"})
+        assert result["ok"] is False
+        assert "Failed to add node" in result["error"]
 
 
 def test_delete_node():
     mock_unreal = mock.MagicMock()
     mock_bt = mock.MagicMock()
     mock_unreal.EditorAssetLibrary.load_asset.return_value = mock_bt
+    mock_unreal.UnrealAIGraphLibrary.delete_bt_node.return_value = True
     with mock.patch.dict('sys.modules', {'unreal': mock_unreal}):
-        from ue5_plugin.UnrealAI.Content.Python.handlers import behavior_trees
-        result = behavior_trees.delete_node({
+        import importlib
+        import ue5_plugin.UnrealAI.Content.Python.handlers.behavior_trees as bt_mod
+        importlib.reload(bt_mod)
+        result = bt_mod.delete_node({
             "asset_path": "/Game/TestBT",
-            "node_name": "SomeNode"
+            "node_name": "BehaviorTreeGraphNode_Composite_0",
         })
         assert result["ok"] is True
-        assert "Node 'SomeNode' deletion not fully implemented" in result["message"]
+        assert result["node_name"] == "BehaviorTreeGraphNode_Composite_0"
+        mock_unreal.UnrealAIGraphLibrary.delete_bt_node.assert_called_once_with(
+            mock_bt, "BehaviorTreeGraphNode_Composite_0"
+        )
+
+
+def test_delete_node_not_found():
+    mock_unreal = mock.MagicMock()
+    mock_bt = mock.MagicMock()
+    mock_unreal.EditorAssetLibrary.load_asset.return_value = mock_bt
+    mock_unreal.UnrealAIGraphLibrary.delete_bt_node.return_value = False
+    with mock.patch.dict('sys.modules', {'unreal': mock_unreal}):
+        import importlib
+        import ue5_plugin.UnrealAI.Content.Python.handlers.behavior_trees as bt_mod
+        importlib.reload(bt_mod)
+        result = bt_mod.delete_node({"asset_path": "/Game/TestBT", "node_name": "Ghost"})
+        assert result["ok"] is False
+        assert "not found" in result["error"]
 
 
 def test_connect_nodes():
     mock_unreal = mock.MagicMock()
     mock_bt = mock.MagicMock()
     mock_unreal.EditorAssetLibrary.load_asset.return_value = mock_bt
+    mock_unreal.UnrealAIGraphLibrary.connect_bt_nodes.return_value = True
     with mock.patch.dict('sys.modules', {'unreal': mock_unreal}):
-        from ue5_plugin.UnrealAI.Content.Python.handlers import behavior_trees
-        result = behavior_trees.connect_nodes({
+        import importlib
+        import ue5_plugin.UnrealAI.Content.Python.handlers.behavior_trees as bt_mod
+        importlib.reload(bt_mod)
+        result = bt_mod.connect_nodes({
             "asset_path": "/Game/TestBT",
-            "from_node": "NodeA",
-            "to_node": "NodeB"
+            "from_node": "BehaviorTreeGraphNode_Root_0",
+            "to_node": "BehaviorTreeGraphNode_Composite_0",
         })
         assert result["ok"] is True
-        assert "Connection from 'NodeA' to 'NodeB' not fully implemented" in result["message"]
+        assert result["connected"] == "BehaviorTreeGraphNode_Root_0 -> BehaviorTreeGraphNode_Composite_0"
+        mock_unreal.UnrealAIGraphLibrary.connect_bt_nodes.assert_called_once_with(
+            mock_bt, "BehaviorTreeGraphNode_Root_0", "BehaviorTreeGraphNode_Composite_0"
+        )
+
+
+def test_connect_nodes_failed():
+    mock_unreal = mock.MagicMock()
+    mock_bt = mock.MagicMock()
+    mock_unreal.EditorAssetLibrary.load_asset.return_value = mock_bt
+    mock_unreal.UnrealAIGraphLibrary.connect_bt_nodes.return_value = False
+    with mock.patch.dict('sys.modules', {'unreal': mock_unreal}):
+        import importlib
+        import ue5_plugin.UnrealAI.Content.Python.handlers.behavior_trees as bt_mod
+        importlib.reload(bt_mod)
+        result = bt_mod.connect_nodes({
+            "asset_path": "/Game/TestBT",
+            "from_node": "NodeA",
+            "to_node": "NodeB",
+        })
+        assert result["ok"] is False
+        assert "Could not connect" in result["error"]
 
 
 def test_disconnect_nodes():
     mock_unreal = mock.MagicMock()
     mock_bt = mock.MagicMock()
     mock_unreal.EditorAssetLibrary.load_asset.return_value = mock_bt
+    mock_unreal.UnrealAIGraphLibrary.disconnect_bt_nodes.return_value = True
     with mock.patch.dict('sys.modules', {'unreal': mock_unreal}):
-        from ue5_plugin.UnrealAI.Content.Python.handlers import behavior_trees
-        result = behavior_trees.disconnect_nodes({
+        import importlib
+        import ue5_plugin.UnrealAI.Content.Python.handlers.behavior_trees as bt_mod
+        importlib.reload(bt_mod)
+        result = bt_mod.disconnect_nodes({
             "asset_path": "/Game/TestBT",
             "from_node": "NodeA",
-            "to_node": "NodeB"
+            "to_node": "NodeB",
         })
         assert result["ok"] is True
-        assert "Disconnection from 'NodeA' to 'NodeB' not fully implemented" in result["message"]
+        assert result["disconnected"] == "NodeA -> NodeB"
+
+
+def test_disconnect_nodes_no_connection():
+    mock_unreal = mock.MagicMock()
+    mock_bt = mock.MagicMock()
+    mock_unreal.EditorAssetLibrary.load_asset.return_value = mock_bt
+    mock_unreal.UnrealAIGraphLibrary.disconnect_bt_nodes.return_value = False
+    with mock.patch.dict('sys.modules', {'unreal': mock_unreal}):
+        import importlib
+        import ue5_plugin.UnrealAI.Content.Python.handlers.behavior_trees as bt_mod
+        importlib.reload(bt_mod)
+        result = bt_mod.disconnect_nodes({
+            "asset_path": "/Game/TestBT",
+            "from_node": "NodeA",
+            "to_node": "NodeB",
+        })
+        assert result["ok"] is False
+        assert "No connection" in result["error"]
+
+
+def test_get_nodes():
+    mock_unreal = mock.MagicMock()
+    mock_bt = mock.MagicMock()
+    mock_node_info = mock.MagicMock()
+    mock_node_info.node_name = "BehaviorTreeGraphNode_Root_0"
+    mock_node_info.node_class = "BehaviorTreeGraphNode_Root"
+    mock_node_info.input_pins = []
+    mock_node_info.output_pins = ["Out"]
+    mock_unreal.EditorAssetLibrary.load_asset.return_value = mock_bt
+    mock_unreal.UnrealAIGraphLibrary.get_bt_nodes.return_value = [mock_node_info]
+    with mock.patch.dict('sys.modules', {'unreal': mock_unreal}):
+        import importlib
+        import ue5_plugin.UnrealAI.Content.Python.handlers.behavior_trees as bt_mod
+        importlib.reload(bt_mod)
+        result = bt_mod.get_nodes({"asset_path": "/Game/TestBT"})
+        assert result["ok"] is True
+        assert len(result["nodes"]) == 1
+        assert result["nodes"][0]["name"] == "BehaviorTreeGraphNode_Root_0"
+        assert result["nodes"][0]["class"] == "BehaviorTreeGraphNode_Root"
+
+
+def test_get_nodes_asset_not_found():
+    mock_unreal = mock.MagicMock()
+    mock_unreal.EditorAssetLibrary.load_asset.return_value = None
+    with mock.patch.dict('sys.modules', {'unreal': mock_unreal}):
+        import importlib
+        import ue5_plugin.UnrealAI.Content.Python.handlers.behavior_trees as bt_mod
+        importlib.reload(bt_mod)
+        result = bt_mod.get_nodes({"asset_path": "/Game/TestBT"})
+        assert result["ok"] is False
+        assert "Behavior Tree not found" in result["error"]
 
 
 def test_set_blackboard():

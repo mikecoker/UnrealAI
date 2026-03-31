@@ -16,6 +16,19 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "UObject/UObjectGlobals.h"
 
+// Behavior Tree
+#include "BehaviorTree/BehaviorTree.h"
+#include "BehaviorTree/BTNode.h"
+#include "BehaviorTree/BTTaskNode.h"
+#include "BehaviorTree/Composites/BTComposite_Sequence.h"
+#include "BehaviorTree/Composites/BTComposite_Selector.h"
+#include "BehaviorTree/Composites/BTComposite_SimpleParallel.h"
+#include "BehaviorTreeGraph.h"
+#include "BehaviorTreeGraphNode.h"
+#include "BehaviorTreeGraphNode_Composite.h"
+#include "BehaviorTreeGraphNode_Task.h"
+#include "BehaviorTreeGraphNode_Root.h"
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -460,4 +473,238 @@ TArray<FString> UUnrealAIGraphLibrary::GetVariableNames(UBlueprint* Blueprint)
         Names.Add(Var.VarName.ToString());
     }
     return Names;
+}
+
+// ---------------------------------------------------------------------------
+// Behavior Tree helpers
+// ---------------------------------------------------------------------------
+
+static UEdGraph* GetBTGraph(UBehaviorTree* BT)
+{
+    if (!BT) return nullptr;
+    return Cast<UEdGraph>(BT->BTGraph);
+}
+
+// ---------------------------------------------------------------------------
+// AddBTCompositeNode
+// ---------------------------------------------------------------------------
+
+UEdGraphNode* UUnrealAIGraphLibrary::AddBTCompositeNode(
+    UBehaviorTree* BT,
+    const FString& CompositeType,
+    float NodeX,
+    float NodeY)
+{
+    UEdGraph* BTGraph = GetBTGraph(BT);
+    if (!BTGraph) return nullptr;
+
+    UBTCompositeNode* CompositeInstance = nullptr;
+    if (CompositeType.Equals(TEXT("Sequence"), ESearchCase::IgnoreCase))
+        CompositeInstance = NewObject<UBTComposite_Sequence>(BT);
+    else if (CompositeType.Equals(TEXT("Selector"), ESearchCase::IgnoreCase))
+        CompositeInstance = NewObject<UBTComposite_Selector>(BT);
+    else if (CompositeType.Equals(TEXT("SimpleParallel"), ESearchCase::IgnoreCase))
+        CompositeInstance = NewObject<UBTComposite_SimpleParallel>(BT);
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UnrealAI: AddBTCompositeNode — unknown type: %s"), *CompositeType);
+        return nullptr;
+    }
+
+    UBehaviorTreeGraphNode_Composite* GraphNode =
+        NewObject<UBehaviorTreeGraphNode_Composite>(BTGraph);
+    GraphNode->NodeInstance = CompositeInstance;
+    GraphNode->NodePosX = static_cast<int32>(NodeX);
+    GraphNode->NodePosY = static_cast<int32>(NodeY);
+
+    BTGraph->AddNode(GraphNode, /*bUserAction=*/false, /*bSelectNewNode=*/false);
+    GraphNode->PostPlacedNewNode();
+    GraphNode->AllocateDefaultPins();
+
+    return GraphNode;
+}
+
+// ---------------------------------------------------------------------------
+// AddBTTaskNode
+// ---------------------------------------------------------------------------
+
+UEdGraphNode* UUnrealAIGraphLibrary::AddBTTaskNode(
+    UBehaviorTree* BT,
+    const FString& TaskClass,
+    float NodeX,
+    float NodeY)
+{
+    UEdGraph* BTGraph = GetBTGraph(BT);
+    if (!BTGraph) return nullptr;
+
+    // Resolve class — short names first, then direct path lookup
+    static const TMap<FString, FString> BuiltinTasks =
+    {
+        { TEXT("Wait"),                    TEXT("/Script/AIModule.BTTask_Wait") },
+        { TEXT("MoveTo"),                  TEXT("/Script/AIModule.BTTask_MoveTo") },
+        { TEXT("MoveDirectlyToward"),      TEXT("/Script/AIModule.BTTask_MoveDirectlyToward") },
+        { TEXT("RunBehavior"),             TEXT("/Script/AIModule.BTTask_RunBehavior") },
+        { TEXT("RunEQSQuery"),             TEXT("/Script/AIModule.BTTask_RunEQSQuery") },
+        { TEXT("RotateToFaceBBEntry"),     TEXT("/Script/AIModule.BTTask_RotateToFaceBBEntry") },
+        { TEXT("SetTagCooldown"),          TEXT("/Script/AIModule.BTTask_SetTagCooldown") },
+        { TEXT("PlayAnimation"),           TEXT("/Script/AIModule.BTTask_PlayAnimation") },
+        { TEXT("PlaySound"),               TEXT("/Script/AIModule.BTTask_PlaySound") },
+        { TEXT("BlueprintBase"),           TEXT("/Script/AIModule.BTTask_BlueprintBase") },
+    };
+
+    UClass* TaskUClass = nullptr;
+    if (const FString* BuiltinPath = BuiltinTasks.Find(TaskClass))
+    {
+        TaskUClass = FindObject<UClass>(nullptr, **BuiltinPath, true);
+        if (!TaskUClass) TaskUClass = LoadObject<UClass>(nullptr, **BuiltinPath);
+    }
+    if (!TaskUClass)
+    {
+        TaskUClass = FindObject<UClass>(nullptr, *TaskClass, true);
+        if (!TaskUClass) TaskUClass = LoadObject<UClass>(nullptr, *TaskClass);
+    }
+    if (!TaskUClass || !TaskUClass->IsChildOf(UBTTaskNode::StaticClass()))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UnrealAI: AddBTTaskNode — task class not found: %s"), *TaskClass);
+        return nullptr;
+    }
+
+    UBTTaskNode* TaskInstance = NewObject<UBTTaskNode>(BT, TaskUClass);
+
+    UBehaviorTreeGraphNode_Task* GraphNode =
+        NewObject<UBehaviorTreeGraphNode_Task>(BTGraph);
+    GraphNode->NodeInstance = TaskInstance;
+    GraphNode->NodePosX = static_cast<int32>(NodeX);
+    GraphNode->NodePosY = static_cast<int32>(NodeY);
+
+    BTGraph->AddNode(GraphNode, false, false);
+    GraphNode->PostPlacedNewNode();
+    GraphNode->AllocateDefaultPins();
+
+    return GraphNode;
+}
+
+// ---------------------------------------------------------------------------
+// DeleteBTNode
+// ---------------------------------------------------------------------------
+
+bool UUnrealAIGraphLibrary::DeleteBTNode(
+    UBehaviorTree* BT,
+    const FString& NodeName)
+{
+    UEdGraph* BTGraph = GetBTGraph(BT);
+    if (!BTGraph) return false;
+
+    for (int32 i = BTGraph->Nodes.Num() - 1; i >= 0; --i)
+    {
+        UEdGraphNode* Node = BTGraph->Nodes[i];
+        if (!Node || Node->GetName() != NodeName) continue;
+
+        if (Node->IsA<UBehaviorTreeGraphNode_Root>())
+        {
+            UE_LOG(LogTemp, Warning, TEXT("UnrealAI: DeleteBTNode — cannot delete root node"));
+            return false;
+        }
+
+        Node->BreakAllNodeLinks();
+        BTGraph->RemoveNode(Node);
+        return true;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("UnrealAI: DeleteBTNode — node not found: %s"), *NodeName);
+    return false;
+}
+
+// ---------------------------------------------------------------------------
+// ConnectBTNodes
+// ---------------------------------------------------------------------------
+
+bool UUnrealAIGraphLibrary::ConnectBTNodes(
+    UBehaviorTree* BT,
+    const FString& ParentNodeName,
+    const FString& ChildNodeName)
+{
+    UEdGraph* BTGraph = GetBTGraph(BT);
+    if (!BTGraph) return false;
+
+    UEdGraphNode* ParentNode = nullptr;
+    UEdGraphNode* ChildNode  = nullptr;
+    for (UEdGraphNode* Node : BTGraph->Nodes)
+    {
+        if (!Node) continue;
+        if (Node->GetName() == ParentNodeName) ParentNode = Node;
+        if (Node->GetName() == ChildNodeName)  ChildNode  = Node;
+    }
+    if (!ParentNode || !ChildNode) return false;
+
+    UEdGraphPin* OutPin = nullptr;
+    for (UEdGraphPin* Pin : ParentNode->Pins)
+    {
+        if (Pin && Pin->Direction == EGPD_Output) { OutPin = Pin; break; }
+    }
+    UEdGraphPin* InPin = nullptr;
+    for (UEdGraphPin* Pin : ChildNode->Pins)
+    {
+        if (Pin && Pin->Direction == EGPD_Input) { InPin = Pin; break; }
+    }
+    if (!OutPin || !InPin) return false;
+
+    const UEdGraphSchema* Schema = BTGraph->GetSchema();
+    if (!Schema) return false;
+
+    FPinConnectionResponse Response = Schema->CanCreateConnection(OutPin, InPin);
+    if (Response.Response == CONNECT_RESPONSE_DISALLOW) return false;
+
+    return Schema->TryCreateConnection(OutPin, InPin);
+}
+
+// ---------------------------------------------------------------------------
+// DisconnectBTNodes
+// ---------------------------------------------------------------------------
+
+bool UUnrealAIGraphLibrary::DisconnectBTNodes(
+    UBehaviorTree* BT,
+    const FString& ParentNodeName,
+    const FString& ChildNodeName)
+{
+    UEdGraph* BTGraph = GetBTGraph(BT);
+    if (!BTGraph) return false;
+
+    UEdGraphNode* ParentNode = nullptr;
+    UEdGraphNode* ChildNode  = nullptr;
+    for (UEdGraphNode* Node : BTGraph->Nodes)
+    {
+        if (!Node) continue;
+        if (Node->GetName() == ParentNodeName) ParentNode = Node;
+        if (Node->GetName() == ChildNodeName)  ChildNode  = Node;
+    }
+    if (!ParentNode || !ChildNode) return false;
+
+    UEdGraphPin* OutPin = nullptr;
+    for (UEdGraphPin* Pin : ParentNode->Pins)
+    {
+        if (Pin && Pin->Direction == EGPD_Output) { OutPin = Pin; break; }
+    }
+    UEdGraphPin* InPin = nullptr;
+    for (UEdGraphPin* Pin : ChildNode->Pins)
+    {
+        if (Pin && Pin->Direction == EGPD_Input) { InPin = Pin; break; }
+    }
+    if (!OutPin || !InPin) return false;
+
+    if (!OutPin->LinkedTo.Contains(InPin)) return false;
+
+    OutPin->BreakLinkTo(InPin);
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// GetBTNodes
+// ---------------------------------------------------------------------------
+
+TArray<FUnrealAINodeInfo> UUnrealAIGraphLibrary::GetBTNodes(UBehaviorTree* BT)
+{
+    UEdGraph* BTGraph = GetBTGraph(BT);
+    if (!BTGraph) return {};
+    return GetGraphNodes(BTGraph);
 }

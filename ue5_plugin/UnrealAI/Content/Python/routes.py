@@ -59,6 +59,7 @@ _ROUTES = {
     "/behavior_tree/disconnect_nodes": behavior_trees.disconnect_nodes,
     "/behavior_tree/set_blackboard": behavior_trees.set_blackboard,
     "/behavior_tree/get_blackboard": behavior_trees.get_blackboard,
+    "/behavior_tree/get_nodes":    behavior_trees.get_nodes,
     "/behavior_tree/compile":      behavior_trees.compile,
     # Blackboard
     "/blackboard/create":          behavior_trees.bb_create,

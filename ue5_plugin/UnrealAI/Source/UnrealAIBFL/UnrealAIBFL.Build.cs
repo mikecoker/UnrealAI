@@ -11,6 +11,7 @@ public class UnrealAIBFL : ModuleRules
             "Core",
             "CoreUObject",
             "Engine",
+            "AIModule",
         });
 
         PrivateDependencyModuleNames.AddRange(new string[]
@@ -20,6 +21,7 @@ public class UnrealAIBFL : ModuleRules
             "GraphEditor",
             "KismetCompiler",
             "Kismet",
+            "BehaviorTreeEditor",
         });
     }
 }

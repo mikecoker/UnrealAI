@@ -19,12 +19,20 @@ def _bt_read(asset_path: str) -> str:
     return json.dumps(r, indent=2)
 
 
-def _bt_add_node(asset_path: str, node_type: str) -> str:
+def _bt_add_node(asset_path: str, node_type: str, x: int = 0, y: int = 0) -> str:
     r = _check(client.post("/behavior_tree/add_node", {
         "asset_path": asset_path,
-        "node_type": node_type
+        "node_type": node_type,
+        "x": x,
+        "y": y,
     }))
-    return f"Added node type '{node_type}' to {asset_path}"
+    node_id = r.get("node_id", "")
+    return f"Added {node_type} node '{node_id}' to {asset_path}"
+
+
+def _bt_get_nodes(asset_path: str) -> str:
+    r = _check(client.post("/behavior_tree/get_nodes", {"asset_path": asset_path}))
+    return json.dumps(r, indent=2)
 
 
 def _bt_delete_node(asset_path: str, node_name: str) -> str:
@@ -118,9 +126,14 @@ def register(mcp):
         return _bt_read(asset_path)
 
     @mcp.tool()
-    def bt_add_node(asset_path: str, node_type: str) -> str:
-        """Add a node to the Behavior Tree. node_type examples: Sequence, Selector, Task, Decorator"""
-        return _bt_add_node(asset_path, node_type)
+    def bt_add_node(asset_path: str, node_type: str, x: int = 0, y: int = 0) -> str:
+        """Add a node to the Behavior Tree. node_type: Sequence, Selector, SimpleParallel (composites) or task class name e.g. Wait, MoveTo, /Game/AI/BP_MyTask"""
+        return _bt_add_node(asset_path, node_type, x, y)
+
+    @mcp.tool()
+    def bt_get_nodes(asset_path: str) -> str:
+        """List all nodes in a Behavior Tree with their names, types, and connections."""
+        return _bt_get_nodes(asset_path)
 
     @mcp.tool()
     def bt_delete_node(asset_path: str, node_name: str) -> str:
