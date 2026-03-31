@@ -201,4 +201,36 @@ public:
      */
     UFUNCTION(BlueprintCallable, Category="UnrealAI|BehaviorTree")
     static TArray<FUnrealAINodeInfo> GetBTNodes(UBehaviorTree* BT);
+
+    // -----------------------------------------------------------------------
+    // Animation Graph manipulation
+    // -----------------------------------------------------------------------
+
+    /**
+     * Add a node to an Animation Graph.
+     * Node types: BlendSpace1D, BlendSpace2D, Sequence, etc.
+     */
+    UFUNCTION(BlueprintCallable, Category="UnrealAI|AnimationGraph")
+    static UEdGraphNode* AddAnimationNode(
+        UEdGraph* Graph,
+        const FString& NodeType,
+        float NodeX,
+        float NodeY);
+
+    /**
+     * Connect two nodes in an Animation Graph.
+     */
+    UFUNCTION(BlueprintCallable, Category="UnrealAI|AnimationGraph")
+    static bool ConnectAnimationNodes(
+        UEdGraph* Graph,
+        const FString& FromNodeName,
+        const FString& ToNodeName);
+
+    /**
+     * Delete a node from an Animation Graph.
+     */
+    UFUNCTION(BlueprintCallable, Category="UnrealAI|AnimationGraph")
+    static bool DeleteAnimationNode(
+        UEdGraph* Graph,
+        const FString& NodeName);
 };

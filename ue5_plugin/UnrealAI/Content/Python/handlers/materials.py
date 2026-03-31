@@ -170,3 +170,22 @@ def apply(body: dict) -> dict:
         return {"ok": True, "material": asset_path, "applied_to": target}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+def delete(body: dict) -> dict:
+    import unreal
+    asset_path = body.get("asset_path")
+    if not asset_path:
+        return {"ok": False, "error": "asset_path is required"}
+    try:
+        if not unreal.EditorAssetLibrary.does_asset_exist(asset_path):
+            return {"ok": False, "error": f"Material not found: {asset_path}"}
+        
+        unreal.EditorAssetLibrary.delete_asset(asset_path)
+        
+        if asset_path in _node_registry:
+            del _node_registry[asset_path]
+        
+        return {"ok": True, "deleted": asset_path}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}

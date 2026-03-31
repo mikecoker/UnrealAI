@@ -56,6 +56,11 @@ def _mat_apply(asset_path: str, target: str, slot: int = 0) -> str:
     return f"Applied {r['material']} to {r['applied_to']} (slot {slot})"
 
 
+def _mat_delete(asset_path: str) -> str:
+    r = _check(client.post("/material/delete", {"asset_path": asset_path}))
+    return f"Deleted Material: {r['deleted']}"
+
+
 def register(mcp):
     @mcp.tool()
     def mat_create(asset_path: str) -> str:
@@ -91,3 +96,8 @@ def register(mcp):
     def mat_apply(asset_path: str, target: str, slot: int = 0) -> str:
         """Apply a Material to a Static Mesh asset path or a level actor name."""
         return _mat_apply(asset_path, target, slot)
+
+    @mcp.tool()
+    def mat_delete(asset_path: str) -> str:
+        """Delete a Material asset."""
+        return _mat_delete(asset_path)

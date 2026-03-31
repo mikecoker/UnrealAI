@@ -1,6 +1,6 @@
 """FastMCP server entrypoint — registers all tools and starts serving."""
 from mcp.server.fastmcp import FastMCP
-from mcp_server.tools import blueprints, materials, scene, behavior_trees
+from mcp_server.tools import blueprints, materials, scene, behavior_trees, animation
 
 
 def create_mcp_server() -> FastMCP:
@@ -9,6 +9,7 @@ def create_mcp_server() -> FastMCP:
     materials.register(mcp)
     scene.register(mcp)
     behavior_trees.register(mcp)
+    animation.register(mcp)
     return mcp
 
 
