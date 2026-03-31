@@ -14,14 +14,18 @@ def test_all_tools_registered():
         "bp_get_nodes", "bp_find_function", "bp_add_node", "bp_connect_pins", "bp_set_property", "bp_set_component_property",
         "bp_add_variable_node", "bp_add_special_node", "bp_delete_variable", "bp_delete_component", "bp_delete_function",
         "bp_delete_event", "bp_delete_node", "bp_disconnect_pins", "bp_compile",
-        # Materials (7)
-        "mat_create", "mat_read", "mat_list", "mat_add_expression", "mat_connect_pins", "mat_set_parameter", "mat_apply",
+        # Materials (8)
+        "mat_create", "mat_read", "mat_list", "mat_add_expression", "mat_connect_pins",
+        "mat_set_parameter", "mat_apply", "mat_delete",
         # Behavior Trees (15)
         "bt_create", "bt_read", "bt_add_node", "bt_delete_node", "bt_connect_nodes", "bt_disconnect_nodes",
         "bt_set_blackboard", "bt_get_blackboard", "bt_get_nodes", "bt_compile",
         "bb_create", "bb_read", "bb_add_variable", "bb_delete_variable", "bb_delete",
+        # Animation (8)
+        "anim_create", "anim_read", "anim_add_node", "anim_get_nodes", "anim_delete_node",
+        "anim_connect_nodes", "anim_disconnect_nodes", "anim_compile",
     }
 
     missing = expected - registered
     assert not missing, f"Missing tools: {missing}"
-    assert len(registered) == 47
+    assert len(registered) == 56

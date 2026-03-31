@@ -9,9 +9,12 @@ def _check(result: dict) -> dict:
     return result
 
 
-def _anim_create(asset_path: str) -> str:
-    r = _check(client.post("/animation/create", {"asset_path": asset_path}))
-    return f"Created Animation Graph: {r['asset_path']}"
+def _anim_create(asset_path: str, skeleton_path: str) -> str:
+    r = _check(client.post("/animation/create", {
+        "asset_path": asset_path,
+        "skeleton_path": skeleton_path,
+    }))
+    return f"Created Animation Blueprint: {r['asset_path']}"
 
 
 def _anim_read(asset_path: str) -> str:
@@ -68,9 +71,9 @@ def _anim_compile(asset_path: str) -> str:
 
 def register(mcp):
     @mcp.tool()
-    def anim_create(asset_path: str) -> str:
-        """Create a new Animation Graph asset. asset_path example: /Game/Characters/AnimGraph_Character"""
-        return _anim_create(asset_path)
+    def anim_create(asset_path: str, skeleton_path: str) -> str:
+        """Create a new Animation Blueprint. asset_path example: /Game/Characters/ABP_Character. skeleton_path example: /Game/Characters/SK_Mannequin"""
+        return _anim_create(asset_path, skeleton_path)
 
     @mcp.tool()
     def anim_read(asset_path: str) -> str:

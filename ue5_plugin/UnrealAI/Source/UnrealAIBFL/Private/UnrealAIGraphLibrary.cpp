@@ -29,6 +29,9 @@
 #include "BehaviorTreeGraphNode_Task.h"
 #include "BehaviorTreeGraphNode_Root.h"
 
+// Animation Graph
+#include "AnimGraphNode_Base.h"
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -707,4 +710,167 @@ TArray<FUnrealAINodeInfo> UUnrealAIGraphLibrary::GetBTNodes(UBehaviorTree* BT)
     UEdGraph* BTGraph = GetBTGraph(BT);
     if (!BTGraph) return {};
     return GetGraphNodes(BTGraph);
+}
+
+// ---------------------------------------------------------------------------
+// Animation Graph helpers
+// ---------------------------------------------------------------------------
+
+// Find the first pin in a given direction on a node.
+static UEdGraphPin* FindFirstPin(UEdGraphNode* Node, EEdGraphPinDirection Direction)
+{
+    for (UEdGraphPin* Pin : Node->Pins)
+    {
+        if (Pin && Pin->Direction == Direction) return Pin;
+    }
+    return nullptr;
+}
+
+// Find a node in a graph by object name.
+static UEdGraphNode* FindNodeByName(UEdGraph* Graph, const FString& Name)
+{
+    for (UEdGraphNode* Node : Graph->Nodes)
+    {
+        if (Node && Node->GetName() == Name) return Node;
+    }
+    return nullptr;
+}
+
+// ---------------------------------------------------------------------------
+// AddAnimationNode
+// ---------------------------------------------------------------------------
+
+UEdGraphNode* UUnrealAIGraphLibrary::AddAnimationNode(
+    UEdGraph* Graph,
+    const FString& NodeType,
+    float NodeX,
+    float NodeY)
+{
+    if (!Graph) return nullptr;
+
+    static const TMap<FString, FString> NodeClassMap =
+    {
+        { TEXT("SequencePlayer"),           TEXT("/Script/AnimGraph.AnimGraphNode_SequencePlayer") },
+        { TEXT("BlendSpacePlayer"),         TEXT("/Script/AnimGraph.AnimGraphNode_BlendSpacePlayer") },
+        { TEXT("BlendSpaceEvaluator"),      TEXT("/Script/AnimGraph.AnimGraphNode_BlendSpaceEvaluator") },
+        { TEXT("StateMachine"),             TEXT("/Script/AnimGraph.AnimGraphNode_StateMachine") },
+        { TEXT("TwoWayBlend"),              TEXT("/Script/AnimGraph.AnimGraphNode_TwoWayBlend") },
+        { TEXT("LayeredBoneBlend"),         TEXT("/Script/AnimGraph.AnimGraphNode_LayeredBoneBlend") },
+        { TEXT("RotationOffsetBlendSpace"), TEXT("/Script/AnimGraph.AnimGraphNode_RotationOffsetBlendSpace") },
+        { TEXT("SaveCachedPose"),           TEXT("/Script/AnimGraph.AnimGraphNode_SaveCachedPose") },
+        { TEXT("UseCachedPose"),            TEXT("/Script/AnimGraph.AnimGraphNode_UseCachedPose") },
+        { TEXT("ModifyBone"),               TEXT("/Script/AnimGraph.AnimGraphNode_ModifyBone") },
+    };
+
+    UClass* NodeClass = nullptr;
+    if (const FString* ClassPath = NodeClassMap.Find(NodeType))
+    {
+        NodeClass = FindObject<UClass>(nullptr, **ClassPath, true);
+        if (!NodeClass) NodeClass = LoadObject<UClass>(nullptr, **ClassPath);
+    }
+    if (!NodeClass)
+    {
+        // Try NodeType as a direct class path
+        NodeClass = FindObject<UClass>(nullptr, *NodeType, true);
+        if (!NodeClass) NodeClass = LoadObject<UClass>(nullptr, *NodeType);
+    }
+    if (!NodeClass || !NodeClass->IsChildOf(UAnimGraphNode_Base::StaticClass()))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UnrealAI: AddAnimationNode — class not found: %s"), *NodeType);
+        return nullptr;
+    }
+
+    UAnimGraphNode_Base* NewNode = NewObject<UAnimGraphNode_Base>(Graph, NodeClass);
+    NewNode->NodePosX = static_cast<int32>(NodeX);
+    NewNode->NodePosY = static_cast<int32>(NodeY);
+
+    Graph->AddNode(NewNode, /*bUserAction=*/false, /*bSelectNewNode=*/false);
+    NewNode->PostPlacedNewNode();
+    NewNode->AllocateDefaultPins();
+
+    return NewNode;
+}
+
+// ---------------------------------------------------------------------------
+// ConnectAnimationNodes
+// ---------------------------------------------------------------------------
+
+bool UUnrealAIGraphLibrary::ConnectAnimationNodes(
+    UEdGraph* Graph,
+    const FString& FromNodeName,
+    const FString& ToNodeName)
+{
+    if (!Graph) return false;
+
+    UEdGraphNode* FromNode = FindNodeByName(Graph, FromNodeName);
+    UEdGraphNode* ToNode   = FindNodeByName(Graph, ToNodeName);
+    if (!FromNode || !ToNode) return false;
+
+    UEdGraphPin* OutPin = FindFirstPin(FromNode, EGPD_Output);
+    UEdGraphPin* InPin  = FindFirstPin(ToNode,   EGPD_Input);
+    if (!OutPin || !InPin) return false;
+
+    const UEdGraphSchema* Schema = Graph->GetSchema();
+    if (!Schema) return false;
+
+    FPinConnectionResponse Response = Schema->CanCreateConnection(OutPin, InPin);
+    if (Response.Response == CONNECT_RESPONSE_DISALLOW) return false;
+
+    return Schema->TryCreateConnection(OutPin, InPin);
+}
+
+// ---------------------------------------------------------------------------
+// DeleteAnimationNode
+// ---------------------------------------------------------------------------
+
+bool UUnrealAIGraphLibrary::DeleteAnimationNode(
+    UEdGraph* Graph,
+    const FString& NodeName)
+{
+    if (!Graph) return false;
+
+    for (int32 i = Graph->Nodes.Num() - 1; i >= 0; --i)
+    {
+        UEdGraphNode* Node = Graph->Nodes[i];
+        if (!Node || Node->GetName() != NodeName) continue;
+
+        // Protect the result/output node — it's the graph's anchor
+        if (Node->GetClass()->GetName().Contains(TEXT("Result")))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("UnrealAI: DeleteAnimationNode — cannot delete result node"));
+            return false;
+        }
+
+        Node->BreakAllNodeLinks();
+        Graph->RemoveNode(Node);
+        return true;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("UnrealAI: DeleteAnimationNode — node not found: %s"), *NodeName);
+    return false;
+}
+
+// ---------------------------------------------------------------------------
+// DisconnectAnimationNodes
+// ---------------------------------------------------------------------------
+
+bool UUnrealAIGraphLibrary::DisconnectAnimationNodes(
+    UEdGraph* Graph,
+    const FString& FromNodeName,
+    const FString& ToNodeName)
+{
+    if (!Graph) return false;
+
+    UEdGraphNode* FromNode = FindNodeByName(Graph, FromNodeName);
+    UEdGraphNode* ToNode   = FindNodeByName(Graph, ToNodeName);
+    if (!FromNode || !ToNode) return false;
+
+    UEdGraphPin* OutPin = FindFirstPin(FromNode, EGPD_Output);
+    UEdGraphPin* InPin  = FindFirstPin(ToNode,   EGPD_Input);
+    if (!OutPin || !InPin) return false;
+
+    if (!OutPin->LinkedTo.Contains(InPin)) return false;
+
+    OutPin->BreakLinkTo(InPin);
+    return true;
 }

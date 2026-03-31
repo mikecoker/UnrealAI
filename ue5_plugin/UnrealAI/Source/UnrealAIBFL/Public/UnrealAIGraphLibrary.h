@@ -228,9 +228,20 @@ public:
 
     /**
      * Delete a node from an Animation Graph.
+     * The result/output node cannot be deleted.
      */
     UFUNCTION(BlueprintCallable, Category="UnrealAI|AnimationGraph")
     static bool DeleteAnimationNode(
         UEdGraph* Graph,
         const FString& NodeName);
+
+    /**
+     * Disconnect two nodes in an Animation Graph.
+     * Breaks the link from FromNode's first output pin to ToNode's first input pin.
+     */
+    UFUNCTION(BlueprintCallable, Category="UnrealAI|AnimationGraph")
+    static bool DisconnectAnimationNodes(
+        UEdGraph* Graph,
+        const FString& FromNodeName,
+        const FString& ToNodeName);
 };

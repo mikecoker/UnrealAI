@@ -22,6 +22,8 @@ public class UnrealAIBFL : ModuleRules
             "KismetCompiler",
             "Kismet",
             "BehaviorTreeEditor",
+            "AIGraph",
+            "AnimGraph",
         });
     }
 }
