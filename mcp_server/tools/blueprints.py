@@ -112,12 +112,34 @@ def _bp_set_component_property(asset_path: str, component: str, property: str, v
     return f"Set {component}.{r['property']} = {r['value']}"
 
 
-def _bp_compile(asset_path: str) -> str:
-    r = _check(client.post("/blueprint/compile", {"asset_path": asset_path}))
-    if r["clean"]:
-        return f"Compiled {asset_path} successfully — no errors."
-    errors = "\n".join(f"  - {e}" for e in r["errors"])
-    return f"Compiled {asset_path} with {len(r['errors'])} error(s):\n{errors}"
+def _bp_delete_variable(asset_path: str, name: str) -> str:
+    r = _check(client.post("/blueprint/delete_variable", {"asset_path": asset_path, "name": name}))
+    return f"Deleted variable '{name}' from {asset_path}"
+
+
+def _bp_delete_component(asset_path: str, name: str) -> str:
+    r = _check(client.post("/blueprint/delete_component", {"asset_path": asset_path, "name": name}))
+    return f"Deleted component '{name}' from {asset_path}"
+
+
+def _bp_delete_function(asset_path: str, name: str) -> str:
+    r = _check(client.post("/blueprint/delete_function", {"asset_path": asset_path, "name": name}))
+    return f"Deleted function '{name}' from {asset_path}"
+
+
+def _bp_delete_event(asset_path: str, name: str) -> str:
+    r = _check(client.post("/blueprint/delete_event", {"asset_path": asset_path, "name": name}))
+    return f"Deleted event '{name}' from {asset_path}"
+
+
+def _bp_delete_node(asset_path: str, graph: str, node_id: str) -> str:
+    r = _check(client.post("/blueprint/delete_node", {"asset_path": asset_path, "graph": graph, "node_id": node_id}))
+    return f"Deleted node '{node_id}' from graph '{graph}' in {asset_path}"
+
+
+def _bp_disconnect_pins(asset_path: str, graph: str, from_node: str, from_pin: str, to_node: str, to_pin: str) -> str:
+    r = _check(client.post("/blueprint/disconnect_pins", {"asset_path": asset_path, "graph": graph, "from_node": from_node, "from_pin": from_pin, "to_node": to_node, "to_pin": to_pin}))
+    return f"Disconnected pins {from_node}.{from_pin} -> {to_node}.{to_pin} in {asset_path}"
 
 
 def register(mcp):
@@ -140,6 +162,36 @@ def register(mcp):
     def bp_add_variable(asset_path: str, name: str, type: str = "float", default_value: str = "") -> str:
         """Add a variable to a Blueprint. type: bool, int, float, string, vector, actor, object"""
         return _bp_add_variable(asset_path, name, type, default_value or None)
+
+    @mcp.tool()
+    def bp_delete_variable(asset_path: str, name: str) -> str:
+        """Delete a variable from a Blueprint."""
+        return _bp_delete_variable(asset_path, name)
+
+    @mcp.tool()
+    def bp_delete_component(asset_path: str, name: str) -> str:
+        """Delete a component from a Blueprint."""
+        return _bp_delete_component(asset_path, name)
+
+    @mcp.tool()
+    def bp_delete_function(asset_path: str, name: str) -> str:
+        """Delete a function from a Blueprint."""
+        return _bp_delete_function(asset_path, name)
+
+    @mcp.tool()
+    def bp_delete_event(asset_path: str, name: str) -> str:
+        """Delete an event from a Blueprint."""
+        return _bp_delete_event(asset_path, name)
+
+    @mcp.tool()
+    def bp_delete_node(asset_path: str, graph: str, node_id: str) -> str:
+        """Delete a node from a Blueprint graph."""
+        return _bp_delete_node(asset_path, graph, node_id)
+
+    @mcp.tool()
+    def bp_disconnect_pins(asset_path: str, graph: str, from_node: str, from_pin: str, to_node: str, to_pin: str) -> str:
+        """Disconnect pins between two nodes in a Blueprint graph."""
+        return _bp_disconnect_pins(asset_path, graph, from_node, from_pin, to_node, to_pin)
 
     @mcp.tool()
     def bp_add_component(asset_path: str, component_class: str, name: str = "") -> str:

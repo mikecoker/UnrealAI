@@ -149,6 +149,34 @@ POST localhost:7777/blueprint/add_node
 
 These are natural next phases after the MVP ships.
 
+## Future Extensions (Post-MVP)
+
+Beyond the MVP, the following enhancements are planned to enable full iterative AI-driven development:
+
+### Blueprint Editing Tools
+- Deletion: `bp_delete_variable`, `bp_delete_component`, `bp_delete_function`, `bp_delete_event`, `bp_delete_node`, `bp_disconnect_pins`
+- Editing: `bp_move_node`, `bp_rename_variable`, `bp_change_variable_type`, `bp_set_node_position`
+- Advanced: Custom event handling, timeline editing, timeline replication
+
+### Material Editing Tools
+- Deletion: `mat_delete_expression`
+- Editing: `mat_move_expression`, `mat_rename_expression`
+- Advanced: Material function creation, parameter group management
+
+### Scene Editing Tools
+- Actor spawning/destruction
+- Component addition/removal at runtime
+- Transform editing
+- Level editing (visibility, locking)
+
+### Advanced Integration Features
+- C++ code generation with Live Coding trigger
+- WebSocket push events from UE5 to MCP for real-time updates
+- In-editor chat panel UI
+- AI generation (text-to-image textures, text-to-3D models)
+
+These features will build upon the same MCP → HTTP → unreal.* Python API pattern established in the MVP.
+
 ---
 
 ## Verification Plan

@@ -160,6 +160,183 @@ def add_variable(body: dict) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+def delete_variable(body: dict) -> dict:
+    import unreal
+    asset_path = body.get("asset_path")
+    name = body.get("name")
+    if not asset_path or not name:
+        return {"ok": False, "error": "asset_path and name are required"}
+    try:
+        bp = _load_bp(asset_path)
+        # Attempt to remove the member variable
+        removed = unreal.BlueprintEditorLibrary.remove_member_variable(bp, name)
+        if not removed:
+            return {"ok": False, "error": f"Failed to remove variable '{name}' - variable may not exist"}
+        unreal.EditorAssetLibrary.save_asset(asset_path)
+        return {"ok": True, "variable": name}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def delete_component(body: dict) -> dict:
+    import unreal
+    asset_path = body.get("asset_path")
+    name = body.get("name")
+    if not asset_path or not name:
+        return {"ok": False, "error": "asset_path and name are required"}
+    try:
+        bp = _load_bp(asset_path)
+        subsystem = unreal.get_engine_subsystem(unreal.SubobjectDataSubsystem)
+        # Find the component handle by name
+        handles = subsystem.k2_gather_subobject_data_for_blueprint(bp)
+        component_handle = None
+        for handle in handles:
+            data = unreal.SubobjectDataBlueprintFunctionLibrary.get_data(handle)
+            if data and str(unreal.SubobjectDataBlueprintFunctionLibrary.get_variable_name(data)) == name:
+                component_handle = handle
+                break
+        if not component_handle:
+            return {"ok": False, "error": f"Component '{name}' not found in blueprint"}
+        # Remove the subobject
+        removed = subsystem.k2_destroy_subobject(bp, component_handle)
+        if not removed:
+            return {"ok": False, "error": f"Failed to remove component '{name}'"}
+        unreal.EditorAssetLibrary.save_asset(asset_path)
+        return {"ok": True, "component": name}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def delete_function(body: dict) -> dict:
+    import unreal
+    asset_path = body.get("asset_path")
+    name = body.get("name")
+    if not asset_path or not name:
+        return {"ok": False, "error": "asset_path and name are required"}
+    try:
+        bp = _load_bp(asset_path)
+        # Find the function graph by name
+        # We can use unreal.BlueprintEditorLibrary.find_function_graph? Not sure.
+        # Instead, we can get all graphs and remove the one with matching name.
+        # But we only want to remove function graphs, not EventGraph or ConstructionScript.
+        # We'll attempt to remove by name using remove_function_graph if exists.
+        # First, check if the function graph exists.
+        # We can use unreal.BlueprintEditorLibrary.find_function_graph(bp, name) ? Not sure if exists.
+        # Let's try to use remove_function_graph directly; it may return False if not found.
+        removed = unreal.BlueprintEditorLibrary.remove_function_graph(bp, name)
+        if not removed:
+            # Maybe the function is not found; try to see if it's a event graph?
+            # For safety, we can also try to remove from the list of graphs.
+            # But we'll just return error.
+            return {"ok": False, "error": f"Failed to remove function '{name}' - function may not exist or is not a removable function graph"}
+        unreal.EditorAssetLibrary.save_asset(asset_path)
+        return {"ok": True, "function": name}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def delete_event(body: dict) -> dict:
+    import unreal
+    asset_path = body.get("asset_path")
+    name = body.get("name")
+    if not asset_path or not name:
+        return {"ok": False, "error": "asset_path and name are required"}
+    try:
+        bp = _load_bp(asset_path)
+        # Find the event graph
+        graph = unreal.BlueprintEditorLibrary.find_event_graph(bp)
+        if graph is None:
+            return {"ok": False, "error": "EventGraph not found"}
+        # Get all nodes in the graph
+        nodes_info = unreal.UnrealAIGraphLibrary.get_graph_nodes(graph)
+        node_to_remove = None
+        for node in nodes_info:
+            # Check if node is an event node (K2Node_Event or K2Node_CustomEvent)
+            if node.node_class in ("K2Node_Event", "K2Node_CustomEvent"):
+                try:
+                    # Get the event name for this node
+                    event_name = unreal.UnrealAIGraphLibrary.get_event_node_function_name(graph, node.node_name)
+                    if event_name and event_name == name:
+                        node_to_remove = node
+                        break
+                except Exception:
+                    # If we can't get the event name, skip
+                    pass
+        if node_to_remove is None:
+            return {"ok": False, "error": f"Event '{name}' not found in EventGraph"}
+        # Remove the node
+        removed = unreal.BlueprintEditorLibrary.delete_node(graph, node_to_remove.node_name)
+        if not removed:
+            return {"ok": False, "error": f"Failed to remove event node '{name}'"}
+        unreal.EditorAssetLibrary.save_asset(asset_path)
+        return {"ok": True, "event": name}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def delete_node(body: dict) -> dict:
+    import unreal
+    asset_path = body.get("asset_path")
+    graph_name = body.get("graph", "EventGraph")
+    node_id = body.get("node_id")
+    if not asset_path or not node_id:
+        return {"ok": False, "error": "asset_path and node_id are required"}
+    try:
+        bp = _load_bp(asset_path)
+        if graph_name == "EventGraph":
+            graph = unreal.BlueprintEditorLibrary.find_event_graph(bp)
+        else:
+            graph = unreal.BlueprintEditorLibrary.find_graph(bp, graph_name)
+        if graph is None:
+            return {"ok": False, "error": f"Graph '{graph_name}' not found"}
+        # Remove the node by its node_id
+        removed = unreal.BlueprintEditorLibrary.delete_node(graph, node_id)
+        if not removed:
+            return {"ok": False, "error": f"Failed to remove node '{node_id}' from graph '{graph_name}'"}
+        unreal.EditorAssetLibrary.save_asset(asset_path)
+        return {"ok": True, "node_id": node_id, "graph": graph_name}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def disconnect_pins(body: dict) -> dict:
+    import unreal
+    asset_path = body.get("asset_path")
+    graph_name = body.get("graph", "EventGraph")
+    from_node = body.get("from_node")
+    from_pin = body.get("from_pin")
+    to_node = body.get("to_node")
+    to_pin = body.get("to_pin")
+    if not all([asset_path, from_node, from_pin, to_node, to_pin]):
+        return {"ok": False, "error": "asset_path, from_node, from_pin, to_node, to_pin are all required"}
+    try:
+        bp = _load_bp(asset_path)
+        if graph_name == "EventGraph":
+            graph = unreal.BlueprintEditorLibrary.find_event_graph(bp)
+        else:
+            graph = unreal.BlueprintEditorLibrary.find_graph(bp, graph_name)
+        if graph is None:
+            return {"ok": False, "error": f"Graph '{graph_name}' not found"}
+        # Disconnect the pins
+        # Assuming there is a disconnect_graph_pins function in UnrealAIGraphLibrary
+        # If not, we may need to use a different approach.
+        # For now, we'll try to use disconnect_graph_pins if it exists.
+        # We'll check by trying to call it and catch AttributeError.
+        try:
+            disconnected = unreal.UnrealAIGraphLibrary.disconnect_graph_pins(graph, from_node, from_pin, to_node, to_pin)
+        except AttributeError:
+            # Fallback: maybe the function is called disconnect_pins? Let's try a different name.
+            # We'll try to see if there is a disconnect_pins function in the graph library.
+            # But we don't know. We'll return error for now.
+            return {"ok": False, "error": "Disconnect function not available in UnrealAIGraphLibrary"}
+        if not disconnected:
+            return {"ok": False, "error": f"Failed to disconnect pins {from_node}.{from_pin} -> {to_node}.{to_pin}"}
+        unreal.EditorAssetLibrary.save_asset(asset_path)
+        return {"ok": True, "disconnected": f"{from_node}.{from_pin} -> {to_node}.{to_pin}"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 def add_component(body: dict) -> dict:
     import unreal
     asset_path = body.get("asset_path")
