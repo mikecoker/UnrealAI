@@ -55,24 +55,28 @@ def _make_mock_unreal():
 
     # --- EditorAssetLibrary ---
     class _EditorAssetLibrary:
-        @staticmethod
-        def load_asset(path):
-            return types.SimpleNamespace(
-                get_name=lambda: path.split("/")[-1],
-                get_path_name=lambda: path,
-            )
+         @staticmethod
+         def load_asset(path):
+             return types.SimpleNamespace(
+                 get_name=lambda: path.split("/")[-1],
+                 get_path_name=lambda: path,
+             )
 
-        @staticmethod
-        def list_assets(path, recursive=True, include_folder=False):
-            return []
+         @staticmethod
+         def list_assets(path, recursive=True, include_folder=False):
+             return []
 
-        @staticmethod
-        def make_directory(path):
-            return True
+         @staticmethod
+         def make_directory(path):
+             return True
 
-        @staticmethod
-        def does_asset_exist(path):
-            return False
+         @staticmethod
+         def does_asset_exist(path):
+             return False
+
+         @staticmethod
+         def save_asset(path):
+             return True
 
     mod.EditorAssetLibrary = _EditorAssetLibrary
 
@@ -146,6 +150,8 @@ def _make_mock_unreal():
     # --- EdGraphPinType (for add_variable) ---
     class _EdGraphPinType:
         pc_type = ""
+        def import_text(self, text):
+            self.pc_type = text
     mod.EdGraphPinType = _EdGraphPinType
 
     # --- Component base classes (for get_components_by_class) ---

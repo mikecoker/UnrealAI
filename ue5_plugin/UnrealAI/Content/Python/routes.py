@@ -1,5 +1,5 @@
 """Maps HTTP paths to handler functions."""
-from handlers import blueprints, materials, scene, debug
+from handlers import blueprints, materials, scene, debug, behavior_trees
 
 _ROUTES = {
     # Scene
@@ -49,6 +49,23 @@ _ROUTES = {
     "/material/connect_pins":      materials.connect_pins,
     "/material/set_parameter":     materials.set_parameter,
     "/material/apply":             materials.apply,
+
+    # Behavior Trees
+    "/behavior_tree/create":       behavior_trees.create,
+    "/behavior_tree/read":         behavior_trees.read,
+    "/behavior_tree/add_node":     behavior_trees.add_node,
+    "/behavior_tree/delete_node":  behavior_trees.delete_node,
+    "/behavior_tree/connect_nodes": behavior_trees.connect_nodes,
+    "/behavior_tree/disconnect_nodes": behavior_trees.disconnect_nodes,
+    "/behavior_tree/set_blackboard": behavior_trees.set_blackboard,
+    "/behavior_tree/get_blackboard": behavior_trees.get_blackboard,
+    "/behavior_tree/compile":      behavior_trees.compile,
+    # Blackboard
+    "/blackboard/create":          behavior_trees.bb_create,
+    "/blackboard/read":            behavior_trees.bb_read,
+    "/blackboard/add_variable":    behavior_trees.bb_add_variable,
+    "/blackboard/delete_variable": behavior_trees.bb_delete_variable,
+    "/blackboard/delete":          behavior_trees.bb_delete,
 }
 
 

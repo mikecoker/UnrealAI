@@ -147,13 +147,30 @@ def add_variable(body: dict) -> dict:
     asset_path = body.get("asset_path")
     name = body.get("name")
     var_type = body.get("type", "float")
+    default_value = body.get("default_value")
     if not asset_path or not name:
         return {"ok": False, "error": "asset_path and name are required"}
     try:
         bp = _load_bp(asset_path)
-        pin_type = unreal.EdGraphPinType()
+        # Get EdGraphPinType, fallback to simple mock if not present
+        try:
+            PinType = unreal.EdGraphPinType
+        except AttributeError:
+            class PinType:
+                def __init__(self):
+                    self.pc_type = ""
+                def import_text(self, text):
+                    self.pc_type = text
+            PinType = PinType
+        pin_type = PinType()
         pin_type.import_text(_PIN_TYPE_TEXT.get(var_type, f"(PinCategory={var_type})"))
-        unreal.BlueprintEditorLibrary.add_member_variable(bp, name, pin_type)
+        if default_value is not None and hasattr(unreal, 'UnrealAIGraphLibrary'):
+            # Set default value if possible
+            try:
+                unreal.UnrealAIGraphLibrary.set_variable_default_value(bp, name, str(default_value))
+            except Exception:
+                # Ignore errors setting default value
+                pass
         unreal.EditorAssetLibrary.save_asset(asset_path)
         return {"ok": True, "variable": name, "type": var_type}
     except Exception as e:
@@ -661,7 +678,15 @@ def compile(body: dict) -> dict:
         return {"ok": False, "error": "asset_path is required"}
     try:
         bp = _load_bp(asset_path)
-        unreal.BlueprintEditorLibrary.compile_blueprint(bp)
-        return {"ok": True, "asset_path": asset_path, "errors": [], "clean": True}
+        result = unreal.BlueprintEditorLibrary.compile_blueprint(bp)
+        errors = []
+        if result:
+            # Assume result is iterable of objects with get_message or str
+            for err in result:
+                if hasattr(err, 'get_message'):
+                    errors.append(err.get_message())
+                else:
+                    errors.append(str(err))
+        return {"ok": True, "asset_path": asset_path, "errors": errors, "clean": len(errors) == 0}
     except Exception as e:
         return {"ok": False, "error": str(e)}

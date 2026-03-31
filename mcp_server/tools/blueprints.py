@@ -112,6 +112,16 @@ def _bp_set_component_property(asset_path: str, component: str, property: str, v
     return f"Set {component}.{r['property']} = {r['value']}"
 
 
+def _bp_compile(asset_path: str) -> str:
+    r = _check(client.post("/blueprint/compile", {"asset_path": asset_path}))
+    errors = r.get("errors", [])
+    clean = r.get("clean", False)
+    if errors:
+        return f"Compiled Blueprint: {asset_path} with errors: {', '.join(errors)}"
+    else:
+        return f"Compiled Blueprint: {asset_path} (clean)"
+
+
 def _bp_delete_variable(asset_path: str, name: str) -> str:
     r = _check(client.post("/blueprint/delete_variable", {"asset_path": asset_path, "name": name}))
     return f"Deleted variable '{name}' from {asset_path}"
