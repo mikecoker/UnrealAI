@@ -1,5 +1,5 @@
 """Maps HTTP paths to handler functions."""
-from handlers import blueprints, materials, scene, debug, behavior_trees, animation
+from handlers import blueprints, materials, scene, debug, behavior_trees, animation, console, python_exec
 
 _ROUTES = {
     # Scene
@@ -62,12 +62,22 @@ _ROUTES = {
     "/behavior_tree/get_blackboard": behavior_trees.get_blackboard,
     "/behavior_tree/get_nodes":    behavior_trees.get_nodes,
     "/behavior_tree/compile":      behavior_trees.compile,
+    "/behavior_tree/delete":       behavior_trees.delete,
     # Blackboard
     "/blackboard/create":          behavior_trees.bb_create,
     "/blackboard/read":            behavior_trees.bb_read,
     "/blackboard/add_variable":    behavior_trees.bb_add_variable,
     "/blackboard/delete_variable": behavior_trees.bb_delete_variable,
     "/blackboard/delete":          behavior_trees.bb_delete,
+
+    # Console
+    "/console/execute":            console.execute,
+    "/console/history":            console.get_history,
+    "/console/clear_history":      console.clear_history,
+
+    # Python execution
+    "/python/execute":             python_exec.execute,
+    "/python/execute_file":        python_exec.execute_file,
 
     # Animation Graphs
     "/animation/create":           animation.create,
@@ -79,10 +89,3 @@ _ROUTES = {
     "/animation/disconnect_nodes": animation.disconnect_nodes,
     "/animation/compile":          animation.compile,
 }
-
-
-def dispatch(path: str, body: dict) -> dict:
-    handler = _ROUTES.get(path)
-    if handler is None:
-        return {"ok": False, "error": f"Unknown route: {path}"}
-    return handler(body)

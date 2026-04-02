@@ -80,6 +80,11 @@ def _bt_compile(asset_path: str) -> str:
     return f"Compiled Behavior Tree: {asset_path}"
 
 
+def _bt_delete(asset_path: str) -> str:
+    _check(client.post("/behavior_tree/delete", {"asset_path": asset_path}))
+    return f"Deleted Behavior Tree: {asset_path}"
+
+
 # Blackboard tools
 def _bb_create(asset_path: str) -> str:
     r = _check(client.post("/blackboard/create", {"asset_path": asset_path}))
@@ -164,6 +169,11 @@ def register(mcp):
     def bt_compile(asset_path: str) -> str:
         """Save (compile) the Behavior Tree."""
         return _bt_compile(asset_path)
+
+    @mcp.tool()
+    def bt_delete(asset_path: str) -> str:
+        """Delete a Behavior Tree asset."""
+        return _bt_delete(asset_path)
 
     # Blackboard tools
     @mcp.tool()

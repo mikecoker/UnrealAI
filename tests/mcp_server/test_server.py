@@ -19,13 +19,21 @@ def test_all_tools_registered():
         "mat_set_parameter", "mat_apply", "mat_delete",
         # Behavior Trees (15)
         "bt_create", "bt_read", "bt_add_node", "bt_delete_node", "bt_connect_nodes", "bt_disconnect_nodes",
-        "bt_set_blackboard", "bt_get_blackboard", "bt_get_nodes", "bt_compile",
+        "bt_set_blackboard", "bt_get_blackboard", "bt_get_nodes", "bt_compile", "bt_delete",
         "bb_create", "bb_read", "bb_add_variable", "bb_delete_variable", "bb_delete",
         # Animation (8)
         "anim_create", "anim_read", "anim_add_node", "anim_get_nodes", "anim_delete_node",
         "anim_connect_nodes", "anim_disconnect_nodes", "anim_compile",
+        # Console / Python execution (5)
+        "console_clear_history", "console_execute", "console_get_history",
+        "execute_python_file", "execute_python_script",
+        # UMG Widgets (12)
+        "uw_create", "uw_read", "uw_list", "uw_compile",
+        "uw_add_widget", "uw_delete_widget",
+        "uw_add_slot", "uw_delete_slot", "uw_set_slot_property",
+        "uw_add_property", "uw_delete_property", "uw_set_property",
     }
 
     missing = expected - registered
     assert not missing, f"Missing tools: {missing}"
-    assert len(registered) == 56
+    assert len(registered) == 74

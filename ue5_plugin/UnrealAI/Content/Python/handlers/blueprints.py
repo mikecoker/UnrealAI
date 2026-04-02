@@ -135,8 +135,22 @@ def list_assets(body: dict) -> dict:
     import unreal
     path = body.get("path", "/Game/")
     try:
-        raw = unreal.EditorAssetLibrary.list_assets(path, recursive=True, include_folder=False)
-        assets = [p.rsplit(".", 1)[0] for p in raw]
+        ar = unreal.AssetRegistryHelpers.get_asset_registry()
+        # class_paths is UE5.1+; fall back to class_names for older versions
+        try:
+            f = unreal.ARFilter(
+                class_paths=["/Script/Engine.Blueprint"],
+                package_paths=[path],
+                recursive_paths=True,
+            )
+        except TypeError:
+            f = unreal.ARFilter(
+                class_names=["Blueprint"],
+                package_paths=[path],
+                recursive_paths=True,
+            )
+        asset_data_list = ar.get_assets(f)
+        assets = sorted({str(a.package_name) for a in asset_data_list})
         return {"ok": True, "assets": assets}
     except Exception as e:
         return {"ok": False, "error": str(e)}

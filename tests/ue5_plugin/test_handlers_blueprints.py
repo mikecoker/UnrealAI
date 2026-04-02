@@ -45,10 +45,11 @@ def test_compile_blueprint_returns_errors(mock_unreal):
 
 
 def test_list_blueprints(mock_unreal):
-    mock_unreal.EditorAssetLibrary.list_assets = lambda path, recursive, include_folder: [
-        "/Game/Characters/BP_Hero.BP_Hero",
-        "/Game/Characters/BP_Enemy.BP_Enemy",
-    ]
+    asset1 = types.SimpleNamespace(package_name="/Game/Characters/BP_Hero")
+    asset2 = types.SimpleNamespace(package_name="/Game/Characters/BP_Enemy")
+    mock_ar = types.SimpleNamespace(get_assets=lambda f: [asset1, asset2])
+    mock_unreal.AssetRegistryHelpers.get_asset_registry = lambda: mock_ar
+    mock_unreal.ARFilter = lambda **kwargs: types.SimpleNamespace()
 
     from handlers.blueprints import list_assets
     result = list_assets({"path": "/Game/Characters/"})

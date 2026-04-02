@@ -43,7 +43,7 @@ def create(body: dict) -> dict:
         package_path = parts[0] + "/" if len(parts) > 1 else "/Game/"
         asset_name = parts[-1]
 
-        factory = unreal.MaterialFactoryNew()
+        factory = getattr(unreal, "MaterialFactoryNew", lambda: None)()
         asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
         mat = asset_tools.create_asset(asset_name, package_path, unreal.Material, factory)
         _node_registry[asset_path] = {}

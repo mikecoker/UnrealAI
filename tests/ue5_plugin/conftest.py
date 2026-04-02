@@ -137,8 +137,27 @@ def _make_mock_unreal():
 
     mod.SystemLibrary = _SystemLibrary
 
+    # --- AssetRegistry (for bp_list) ---
+    class _ARFilter:
+        def __init__(self, **kwargs):
+            pass
+
+    class _AssetRegistry:
+        @staticmethod
+        def get_assets(f):
+            return []
+
+    class _AssetRegistryHelpers:
+        @staticmethod
+        def get_asset_registry():
+            return _AssetRegistry()
+
+    mod.ARFilter = _ARFilter
+    mod.AssetRegistryHelpers = _AssetRegistryHelpers
+
     # --- load_class helper ---
     mod.load_class = lambda outer, path: type(path.split(".")[-1], (), {})()
+
 
     # --- Actor transform helpers ---
     class _Vector:

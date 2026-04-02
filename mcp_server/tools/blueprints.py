@@ -234,9 +234,9 @@ def register(mcp):
         return _bp_add_special_node(asset_path, graph, node_type, x, y)
 
     @mcp.tool()
-    def bp_find_function(name: str) -> str:
-        """Search for a UE5 function by name. Returns full paths like '/Script/Engine.KismetSystemLibrary:PrintString' needed by bp_add_node. Use this before bp_add_node if you don't know the exact path."""
-        return _bp_find_function(name)
+    def bp_find_function(name: str, function_name: str = "", asset_path: str = "") -> str:
+        """Search for a UE5 function by name. Returns full paths like '/Script/Engine.KismetSystemLibrary:PrintString' needed by bp_add_node. Use this before bp_add_node if you don't know the exact path. asset_path is ignored (search is global)."""
+        return _bp_find_function(function_name or name)
 
     @mcp.tool()
     def bp_add_node(asset_path: str, graph: str, function: str, x: int = 0, y: int = 0) -> str:
