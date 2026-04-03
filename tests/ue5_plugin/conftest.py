@@ -33,6 +33,13 @@ def _make_mock_unreal():
     mod.BlueprintFactory = _BlueprintFactory
     mod.Blueprint = object()
 
+    # --- User Widget factory ---
+    class _WidgetBlueprintFactory:
+        parent_class = None
+
+    mod.WidgetBlueprintFactory = _WidgetBlueprintFactory
+    mod.WidgetBlueprint = object()
+
     # --- BlueprintEditorLibrary ---
     class _BlueprintEditorLibrary:
         @staticmethod

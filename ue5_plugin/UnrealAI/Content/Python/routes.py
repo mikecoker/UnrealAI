@@ -1,5 +1,5 @@
 """Maps HTTP paths to handler functions."""
-from handlers import blueprints, materials, scene, debug, behavior_trees, animation, console, python_exec
+from handlers import blueprints, materials, scene, debug, behavior_trees, animation, console, python_exec, user_widgets
 
 _ROUTES = {
     # Scene
@@ -88,4 +88,24 @@ _ROUTES = {
     "/animation/connect_nodes":    animation.connect_nodes,
     "/animation/disconnect_nodes": animation.disconnect_nodes,
     "/animation/compile":          animation.compile,
+
+    # User Widgets
+    "/userwidget/create":          user_widgets.create,
+    "/userwidget/read":            user_widgets.read,
+    "/userwidget/list":            user_widgets.list_assets,
+    "/userwidget/add_widget":      user_widgets.add_widget,
+    "/userwidget/delete_widget":   user_widgets.delete_widget,
+    "/userwidget/add_slot":        user_widgets.add_slot,
+    "/userwidget/delete_slot":     user_widgets.delete_slot,
+    "/userwidget/add_property":    user_widgets.add_property,
+    "/userwidget/delete_property": user_widgets.delete_property,
+    "/userwidget/set_property":    user_widgets.set_property,
+    "/userwidget/set_slot_property": user_widgets.set_slot_property,
+    "/userwidget/compile":         user_widgets.compile,
 }
+
+def dispatch(path: str, body: dict) -> dict:
+    handler = _ROUTES.get(path)
+    if handler is None:
+        return {"ok": False, "error": f"Unknown route: {path}"}
+    return handler(body)
